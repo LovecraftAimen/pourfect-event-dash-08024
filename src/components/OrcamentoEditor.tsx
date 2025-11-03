@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Orcamento, Cliente } from '@/types';
+import type { Orcamento, Cliente } from '@/types';
 import { Plus, Trash2, Download } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import jsPDF from 'jspdf';
@@ -20,13 +20,13 @@ interface OrcamentoEditorProps {
   onSave: (orcamento: Orcamento) => void;
 }
 
-export const OrcamentoEditor = ({ 
+export function OrcamentoEditor({ 
   orcamento, 
   clientes, 
   open, 
   onOpenChange, 
   onSave 
-}: OrcamentoEditorProps) => {
+}: OrcamentoEditorProps) {
   const { toast } = useToast();
   const [form, setForm] = useState<Partial<Orcamento>>(
     orcamento || {
@@ -301,6 +301,48 @@ export const OrcamentoEditor = ({
     toast({ title: 'PDF gerado com sucesso!' });
   };
 
+  const renderInsumoSection = (
+    categoria: 'distilados' | 'frutas' | 'outrasBebidas' | 'outrosInsumos',
+    titulo: string
+  ) => (
+    <div>
+      <div className="flex justify-between items-center mb-3">
+        <Label className="text-base font-semibold">{titulo}</Label>
+        <Button type="button" size="sm" onClick={() => addInsumo(categoria)}>
+          <Plus className="h-4 w-4 mr-1" />
+          Adicionar
+        </Button>
+      </div>
+      <div className="space-y-2">
+        {form.listaInsumos?.[categoria]?.map((item, index) => (
+          <div key={index} className="grid grid-cols-12 gap-2">
+            <Input
+              className="col-span-6"
+              value={item.nome}
+              onChange={(e) => updateInsumo(categoria, index, 'nome', e.target.value)}
+              placeholder="Nome"
+            />
+            <Input
+              className="col-span-5"
+              value={item.quantidade}
+              onChange={(e) => updateInsumo(categoria, index, 'quantidade', e.target.value)}
+              placeholder="Quantidade"
+            />
+            <Button
+              type="button"
+              className="col-span-1"
+              size="icon"
+              variant="ghost"
+              onClick={() => removeInsumo(categoria, index)}
+            >
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
@@ -532,163 +574,13 @@ export const OrcamentoEditor = ({
               <CardTitle>Lista de Insumos (Opcional)</CardTitle>
             </CardHeader>
             <CardContent className="space-y-6">
-              {/* Distilados */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <Label className="text-base font-semibold">Distilados</Label>
-                  <Button type="button" size="sm" onClick={() => addInsumo('distilados')}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adicionar
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {form.listaInsumos?.distilados?.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2">
-                      <Input
-                        className="col-span-6"
-                        value={item.nome}
-                        onChange={(e) => updateInsumo('distilados', index, 'nome', e.target.value)}
-                        placeholder="Nome"
-                      />
-                      <Input
-                        className="col-span-5"
-                        value={item.quantidade}
-                        onChange={(e) => updateInsumo('distilados', index, 'quantidade', e.target.value)}
-                        placeholder="Quantidade"
-                      />
-                      <Button
-                        type="button"
-                        className="col-span-1"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeInsumo('distilados', index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+              {renderInsumoSection('distilados', 'Distilados')}
               <Separator />
-
-              {/* Frutas */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <Label className="text-base font-semibold">Frutas</Label>
-                  <Button type="button" size="sm" onClick={() => addInsumo('frutas')}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adicionar
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {form.listaInsumos?.frutas?.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2">
-                      <Input
-                        className="col-span-6"
-                        value={item.nome}
-                        onChange={(e) => updateInsumo('frutas', index, 'nome', e.target.value)}
-                        placeholder="Nome"
-                      />
-                      <Input
-                        className="col-span-5"
-                        value={item.quantidade}
-                        onChange={(e) => updateInsumo('frutas', index, 'quantidade', e.target.value)}
-                        placeholder="Quantidade"
-                      />
-                      <Button
-                        type="button"
-                        className="col-span-1"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeInsumo('frutas', index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+              {renderInsumoSection('frutas', 'Frutas')}
               <Separator />
-
-              {/* Outras Bebidas */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <Label className="text-base font-semibold">Outras Bebidas</Label>
-                  <Button type="button" size="sm" onClick={() => addInsumo('outrasBebidas')}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adicionar
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {form.listaInsumos?.outrasBebidas?.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2">
-                      <Input
-                        className="col-span-6"
-                        value={item.nome}
-                        onChange={(e) => updateInsumo('outrasBebidas', index, 'nome', e.target.value)}
-                        placeholder="Nome"
-                      />
-                      <Input
-                        className="col-span-5"
-                        value={item.quantidade}
-                        onChange={(e) => updateInsumo('outrasBebidas', index, 'quantidade', e.target.value)}
-                        placeholder="Quantidade"
-                      />
-                      <Button
-                        type="button"
-                        className="col-span-1"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeInsumo('outrasBebidas', index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
+              {renderInsumoSection('outrasBebidas', 'Outras Bebidas')}
               <Separator />
-
-              {/* Outros Insumos */}
-              <div>
-                <div className="flex justify-between items-center mb-3">
-                  <Label className="text-base font-semibold">Outros Insumos</Label>
-                  <Button type="button" size="sm" onClick={() => addInsumo('outrosInsumos')}>
-                    <Plus className="h-4 w-4 mr-1" />
-                    Adicionar
-                  </Button>
-                </div>
-                <div className="space-y-2">
-                  {form.listaInsumos?.outrosInsumos?.map((item, index) => (
-                    <div key={index} className="grid grid-cols-12 gap-2">
-                      <Input
-                        className="col-span-6"
-                        value={item.nome}
-                        onChange={(e) => updateInsumo('outrosInsumos', index, 'nome', e.target.value)}
-                        placeholder="Nome"
-                      />
-                      <Input
-                        className="col-span-5"
-                        value={item.quantidade}
-                        onChange={(e) => updateInsumo('outrosInsumos', index, 'quantidade', e.target.value)}
-                        placeholder="Quantidade"
-                      />
-                      <Button
-                        type="button"
-                        className="col-span-1"
-                        size="icon"
-                        variant="ghost"
-                        onClick={() => removeInsumo('outrosInsumos', index)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              {renderInsumoSection('outrosInsumos', 'Outros Insumos')}
             </CardContent>
           </Card>
 
@@ -744,4 +636,4 @@ export const OrcamentoEditor = ({
       </DialogContent>
     </Dialog>
   );
-};
+}
