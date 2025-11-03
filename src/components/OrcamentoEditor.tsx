@@ -4,13 +4,12 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import type { Orcamento, Cliente } from '@/types';
-import { Plus, Trash2, Download } from 'lucide-react';
+import { Plus, Trash2, Calendar, Clock, MapPin, Users, DollarSign } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import jsPDF from 'jspdf';
 
 interface OrcamentoEditorProps {
   orcamento: Orcamento | null;
@@ -76,51 +75,11 @@ export function OrcamentoEditor({
     });
   };
 
-  const addInsumo = (categoria: 'distilados' | 'frutas' | 'outrasBebidas' | 'outrosInsumos') => {
-    const listaInsumos = form.listaInsumos || { distilados: [], frutas: [], outrasBebidas: [], outrosInsumos: [] };
-    setForm({
-      ...form,
-      listaInsumos: {
-        ...listaInsumos,
-        [categoria]: [...(listaInsumos[categoria] || []), { nome: '', quantidade: '' }]
-      }
-    });
-  };
-
-  const updateInsumo = (
-    categoria: 'distilados' | 'frutas' | 'outrasBebidas' | 'outrosInsumos',
-    index: number,
-    field: 'nome' | 'quantidade',
-    value: string
-  ) => {
-    const listaInsumos = form.listaInsumos || { distilados: [], frutas: [], outrasBebidas: [], outrosInsumos: [] };
-    const lista = [...(listaInsumos[categoria] || [])];
-    lista[index] = { ...lista[index], [field]: value };
-    setForm({
-      ...form,
-      listaInsumos: {
-        ...listaInsumos,
-        [categoria]: lista
-      }
-    });
-  };
-
-  const removeInsumo = (categoria: 'distilados' | 'frutas' | 'outrasBebidas' | 'outrosInsumos', index: number) => {
-    const listaInsumos = form.listaInsumos || { distilados: [], frutas: [], outrasBebidas: [], outrosInsumos: [] };
-    setForm({
-      ...form,
-      listaInsumos: {
-        ...listaInsumos,
-        [categoria]: listaInsumos[categoria]?.filter((_, i) => i !== index)
-      }
-    });
-  };
-
   const handleSave = () => {
     if (!form.clienteId || !form.nomeEvento || !form.dataEvento || !form.localEvento) {
       toast({
         title: 'Campos obrigatórios',
-        description: 'Preencha todos os campos obrigatórios',
+        description: 'Preencha cliente, nome do evento, data e local',
         variant: 'destructive'
       });
       return;
@@ -135,237 +94,43 @@ export function OrcamentoEditor({
     } as Orcamento;
 
     onSave(orcamentoCompleto);
+    onOpenChange(false);
     toast({ title: 'Orçamento salvo com sucesso!' });
   };
 
-  const generatePDF = () => {
-    const pdf = new jsPDF();
-    const pageWidth = pdf.internal.pageSize.getWidth();
-    let yPos = 20;
-
-    // Título
-    pdf.setFontSize(20);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('DONKEY SHOT', pageWidth / 2, yPos, { align: 'center' });
-    yPos += 15;
-
-    // Informações do Evento
-    pdf.setFontSize(14);
-    pdf.text('Evento:', 20, yPos);
-    yPos += 8;
-
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`${form.nomeEvento || ''} - Quantidades de convidados: ${form.numeroConvidados || 0}`, 20, yPos);
-    yPos += 7;
-    pdf.text(`Data: ${form.dataEvento ? new Date(form.dataEvento).toLocaleDateString('pt-BR') : ''}`, 20, yPos);
-    yPos += 7;
-    pdf.text(`Horário de Abertura: ${form.horarioAbertura || ''}`, 20, yPos);
-    yPos += 7;
-    pdf.text(`Local: ${form.localEvento || ''}`, 20, yPos);
-    yPos += 7;
-    pdf.text(`Horário de fechamento: ${form.horarioFechamento || ''}`, 20, yPos);
-    yPos += 12;
-
-    // Cartas de Drinks
-    if (form.cartasDrinks && form.cartasDrinks.length > 0) {
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Cartas de Drinks', 20, yPos);
-      yPos += 8;
-
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      form.cartasDrinks.forEach((drink) => {
-        pdf.text(`- ${drink}`, 25, yPos);
-        yPos += 6;
-      });
-      yPos += 6;
-    }
-
-    // Obrigações da Donkey Shot
-    pdf.setFontSize(14);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Obrigações da Donkey Shot', 20, yPos);
-    yPos += 8;
-
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text('Montagem: A contratada se compromete a chegar ao local do evento com,', 20, yPos);
-    yPos += 6;
-    pdf.text('no mínimo, 3 (três) horas de antecedência para preparar os drinks.', 20, yPos);
-    yPos += 10;
-
-    // Equipamentos e Serviços
-    pdf.setFontSize(14);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Equipamentos e Serviços:', 20, yPos);
-    yPos += 8;
-
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(`Prestação de serviço por ${form.numeroBartendes || 2} Bartenders (dimensionados para ${form.numeroConvidados || 0} convidados).`, 20, yPos);
-    yPos += 10;
-
-    // Estrutura
-    pdf.setFontSize(14);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Estrutura:', 20, yPos);
-    yPos += 8;
-
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
-    const estruturaText = pdf.splitTextToSize(form.estrutura || '', pageWidth - 40);
-    pdf.text(estruturaText, 20, yPos);
-    yPos += estruturaText.length * 6 + 4;
-
-    // Condições Financeiras
-    pdf.setFontSize(14);
-    pdf.setFont('helvetica', 'bold');
-    pdf.text('Condições Financeiras', 20, yPos);
-    yPos += 8;
-
-    pdf.setFontSize(11);
-    pdf.setFont('helvetica', 'normal');
-    const valorTotal = form.condicoesFinanceiras?.valorTotal || 0;
-    pdf.text(`Valor Total do Serviço: R$ ${valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPos);
-    yPos += 7;
-
-    const percentual = form.condicoesFinanceiras?.percentualAntecipado || 50;
-    const valorAntecipado = (valorTotal * percentual) / 100;
-    const diasAntecedencia = form.condicoesFinanceiras?.diasAntecedencia || 3;
-    
-    pdf.text(`Pagamento: ${percentual}% (R$ ${valorAntecipado.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}) a confirmar ${diasAntecedencia} dias antes do evento.`, 20, yPos);
-    yPos += 10;
-
-    // Horário Extra
-    if (form.horarioExtra) {
-      pdf.setFontSize(14);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('Horário Extra:', 20, yPos);
-      yPos += 8;
-
-      pdf.setFontSize(11);
-      pdf.setFont('helvetica', 'normal');
-      pdf.text(`Caso o contrato tenha que ser estendido, o valor adicional será R$ ${form.horarioExtra.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}.`, 20, yPos);
-      yPos += 10;
-    }
-
-    // Segunda página - Lista de Insumos
-    if (form.listaInsumos && 
-        (form.listaInsumos.distilados?.length || 
-         form.listaInsumos.frutas?.length || 
-         form.listaInsumos.outrasBebidas?.length || 
-         form.listaInsumos.outrosInsumos?.length)) {
-      
-      pdf.addPage();
-      yPos = 20;
-
-      pdf.setFontSize(20);
-      pdf.setFont('helvetica', 'bold');
-      pdf.text('DONKEY SHOT LIST', pageWidth / 2, yPos, { align: 'center' });
-      yPos += 15;
-
-      const renderCategoria = (titulo: string, items: { nome: string; quantidade: string }[] | undefined) => {
-        if (!items || items.length === 0) return;
-        
-        pdf.setFontSize(12);
-        pdf.setFont('helvetica', 'bold');
-        pdf.text(titulo, 20, yPos);
-        yPos += 8;
-
-        pdf.setFontSize(10);
-        pdf.setFont('helvetica', 'normal');
-        items.forEach((item) => {
-          if (yPos > 270) {
-            pdf.addPage();
-            yPos = 20;
-          }
-          pdf.text(`${item.nome}:`, 20, yPos);
-          pdf.text(item.quantidade, 120, yPos);
-          yPos += 6;
-        });
-        yPos += 5;
-      };
-
-      renderCategoria('Distilados:', form.listaInsumos.distilados);
-      renderCategoria('Frutas:', form.listaInsumos.frutas);
-      renderCategoria('Outras Bebidas:', form.listaInsumos.outrasBebidas);
-      renderCategoria('Outros Insumos:', form.listaInsumos.outrosInsumos);
-    }
-
-    const cliente = clientes.find(c => c.id === form.clienteId);
-    const nomeArquivo = `Orcamento_${cliente?.nome || 'Cliente'}_${form.nomeEvento || 'Evento'}.pdf`;
-    pdf.save(nomeArquivo);
-
-    toast({ title: 'PDF gerado com sucesso!' });
-  };
-
-  const renderInsumoSection = (
-    categoria: 'distilados' | 'frutas' | 'outrasBebidas' | 'outrosInsumos',
-    titulo: string
-  ) => (
-    <div>
-      <div className="flex justify-between items-center mb-3">
-        <Label className="text-base font-semibold">{titulo}</Label>
-        <Button type="button" size="sm" onClick={() => addInsumo(categoria)}>
-          <Plus className="h-4 w-4 mr-1" />
-          Adicionar
-        </Button>
-      </div>
-      <div className="space-y-2">
-        {form.listaInsumos?.[categoria]?.map((item, index) => (
-          <div key={index} className="grid grid-cols-12 gap-2">
-            <Input
-              className="col-span-6"
-              value={item.nome}
-              onChange={(e) => updateInsumo(categoria, index, 'nome', e.target.value)}
-              placeholder="Nome"
-            />
-            <Input
-              className="col-span-5"
-              value={item.quantidade}
-              onChange={(e) => updateInsumo(categoria, index, 'quantidade', e.target.value)}
-              placeholder="Quantidade"
-            />
-            <Button
-              type="button"
-              className="col-span-1"
-              size="icon"
-              variant="ghost"
-              onClick={() => removeInsumo(categoria, index)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
+  const valorTotal = form.condicoesFinanceiras?.valorTotal || 0;
+  const percentualAntecipado = form.condicoesFinanceiras?.percentualAntecipado || 50;
+  const valorAntecipado = (valorTotal * percentualAntecipado) / 100;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
-          <DialogTitle className="text-2xl">
-            {orcamento ? 'Editar Orçamento' : 'Novo Orçamento Detalhado'}
+          <DialogTitle className="text-2xl font-bold">
+            {orcamento ? 'Editar Orçamento' : 'Novo Orçamento'}
           </DialogTitle>
+          <CardDescription>
+            Preencha as informações do evento para gerar o orçamento
+          </CardDescription>
         </DialogHeader>
 
-        <div className="space-y-6">
-          {/* Informações Básicas */}
+        <div className="space-y-6 py-4">
+          {/* Cliente e Status */}
           <Card>
             <CardHeader>
-              <CardTitle>Informações do Evento</CardTitle>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Cliente e Status
+              </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-4 md:grid-cols-2">
-              <div>
+              <div className="space-y-2">
                 <Label htmlFor="cliente">Cliente *</Label>
                 <Select 
                   value={form.clienteId} 
                   onValueChange={(value) => setForm({ ...form, clienteId: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="cliente">
                     <SelectValue placeholder="Selecione o cliente" />
                   </SelectTrigger>
                   <SelectContent>
@@ -378,225 +143,13 @@ export function OrcamentoEditor({
                 </Select>
               </div>
 
-              <div>
-                <Label htmlFor="nomeEvento">Nome do Evento *</Label>
-                <Input
-                  id="nomeEvento"
-                  value={form.nomeEvento || ''}
-                  onChange={(e) => setForm({ ...form, nomeEvento: e.target.value })}
-                  placeholder="Ex: Meio médico"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="dataEvento">Data do Evento *</Label>
-                <Input
-                  id="dataEvento"
-                  type="date"
-                  value={form.dataEvento || ''}
-                  onChange={(e) => setForm({ ...form, dataEvento: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="localEvento">Local *</Label>
-                <Input
-                  id="localEvento"
-                  value={form.localEvento || ''}
-                  onChange={(e) => setForm({ ...form, localEvento: e.target.value })}
-                  placeholder="Ex: Presidente Dutra"
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="numeroConvidados">Número de Convidados</Label>
-                <Input
-                  id="numeroConvidados"
-                  type="number"
-                  value={form.numeroConvidados || 0}
-                  onChange={(e) => setForm({ ...form, numeroConvidados: Number(e.target.value) })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="horarioAbertura">Horário de Abertura</Label>
-                <Input
-                  id="horarioAbertura"
-                  type="time"
-                  value={form.horarioAbertura || ''}
-                  onChange={(e) => setForm({ ...form, horarioAbertura: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="horarioFechamento">Horário de Fechamento</Label>
-                <Input
-                  id="horarioFechamento"
-                  type="time"
-                  value={form.horarioFechamento || ''}
-                  onChange={(e) => setForm({ ...form, horarioFechamento: e.target.value })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="numeroBartendes">Número de Bartenders</Label>
-                <Input
-                  id="numeroBartendes"
-                  type="number"
-                  value={form.numeroBartendes || 2}
-                  onChange={(e) => setForm({ ...form, numeroBartendes: Number(e.target.value) })}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Carta de Drinks */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Carta de Drinks</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="flex gap-2">
-                <Input
-                  value={novoDrink}
-                  onChange={(e) => setNovoDrink(e.target.value)}
-                  placeholder="Nome do drink"
-                  onKeyPress={(e) => e.key === 'Enter' && (e.preventDefault(), addDrink())}
-                />
-                <Button type="button" onClick={addDrink}>
-                  <Plus className="h-4 w-4" />
-                </Button>
-              </div>
               <div className="space-y-2">
-                {form.cartasDrinks?.map((drink, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded">
-                    <span className="flex-1">{drink}</span>
-                    <Button
-                      type="button"
-                      size="icon"
-                      variant="ghost"
-                      onClick={() => removeDrink(index)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Estrutura */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Estrutura</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <Textarea
-                value={form.estrutura || ''}
-                onChange={(e) => setForm({ ...form, estrutura: e.target.value })}
-                rows={3}
-                placeholder="Descreva a estrutura fornecida"
-              />
-            </CardContent>
-          </Card>
-
-          {/* Condições Financeiras */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Condições Financeiras</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="valorTotal">Valor Total do Serviço (R$)</Label>
-                <Input
-                  id="valorTotal"
-                  type="number"
-                  step="0.01"
-                  value={form.condicoesFinanceiras?.valorTotal || 0}
-                  onChange={(e) => setForm({
-                    ...form,
-                    condicoesFinanceiras: {
-                      ...form.condicoesFinanceiras,
-                      valorTotal: Number(e.target.value)
-                    }
-                  })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="percentualAntecipado">% Pagamento Antecipado</Label>
-                <Input
-                  id="percentualAntecipado"
-                  type="number"
-                  value={form.condicoesFinanceiras?.percentualAntecipado || 50}
-                  onChange={(e) => setForm({
-                    ...form,
-                    condicoesFinanceiras: {
-                      ...form.condicoesFinanceiras,
-                      percentualAntecipado: Number(e.target.value)
-                    }
-                  })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="diasAntecedencia">Dias de Antecedência</Label>
-                <Input
-                  id="diasAntecedencia"
-                  type="number"
-                  value={form.condicoesFinanceiras?.diasAntecedencia || 3}
-                  onChange={(e) => setForm({
-                    ...form,
-                    condicoesFinanceiras: {
-                      ...form.condicoesFinanceiras,
-                      diasAntecedencia: Number(e.target.value)
-                    }
-                  })}
-                />
-              </div>
-
-              <div>
-                <Label htmlFor="horarioExtra">Valor Horário Extra (R$)</Label>
-                <Input
-                  id="horarioExtra"
-                  type="number"
-                  step="0.01"
-                  value={form.horarioExtra || 0}
-                  onChange={(e) => setForm({ ...form, horarioExtra: Number(e.target.value) })}
-                />
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* Lista de Insumos */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Lista de Insumos (Opcional)</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {renderInsumoSection('distilados', 'Distilados')}
-              <Separator />
-              {renderInsumoSection('frutas', 'Frutas')}
-              <Separator />
-              {renderInsumoSection('outrasBebidas', 'Outras Bebidas')}
-              <Separator />
-              {renderInsumoSection('outrosInsumos', 'Outros Insumos')}
-            </CardContent>
-          </Card>
-
-          {/* Status */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Status do Orçamento</CardTitle>
-            </CardHeader>
-            <CardContent className="grid gap-4 md:grid-cols-2">
-              <div>
-                <Label htmlFor="status">Status</Label>
+                <Label htmlFor="status">Status do Orçamento</Label>
                 <Select 
                   value={form.status} 
                   onValueChange={(value: any) => setForm({ ...form, status: value })}
                 >
-                  <SelectTrigger>
+                  <SelectTrigger id="status">
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
@@ -606,29 +159,299 @@ export function OrcamentoEditor({
                   </SelectContent>
                 </Select>
               </div>
+            </CardContent>
+          </Card>
 
-              <div>
-                <Label htmlFor="dataEnvio">Data de Envio</Label>
+          {/* Informações do Evento */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Calendar className="h-5 w-5" />
+                Informações do Evento
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="grid gap-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="nomeEvento">Nome do Evento *</Label>
+                  <Input
+                    id="nomeEvento"
+                    value={form.nomeEvento || ''}
+                    onChange={(e) => setForm({ ...form, nomeEvento: e.target.value })}
+                    placeholder="Ex: Meio médico, Festa de fim de ano..."
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="numeroConvidados">Número de Convidados</Label>
+                  <Input
+                    id="numeroConvidados"
+                    type="number"
+                    min="1"
+                    value={form.numeroConvidados || 0}
+                    onChange={(e) => setForm({ ...form, numeroConvidados: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+
+              <div className="grid gap-4 md:grid-cols-3">
+                <div className="space-y-2">
+                  <Label htmlFor="dataEvento" className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Data do Evento *
+                  </Label>
+                  <Input
+                    id="dataEvento"
+                    type="date"
+                    value={form.dataEvento || ''}
+                    onChange={(e) => setForm({ ...form, dataEvento: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="horarioAbertura" className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Horário de Abertura
+                  </Label>
+                  <Input
+                    id="horarioAbertura"
+                    type="time"
+                    value={form.horarioAbertura || ''}
+                    onChange={(e) => setForm({ ...form, horarioAbertura: e.target.value })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="horarioFechamento" className="flex items-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    Horário de Fechamento
+                  </Label>
+                  <Input
+                    id="horarioFechamento"
+                    type="time"
+                    value={form.horarioFechamento || ''}
+                    onChange={(e) => setForm({ ...form, horarioFechamento: e.target.value })}
+                  />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="localEvento" className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4" />
+                  Local do Evento *
+                </Label>
                 <Input
-                  id="dataEnvio"
-                  type="date"
-                  value={form.dataEnvio || ''}
-                  onChange={(e) => setForm({ ...form, dataEnvio: e.target.value })}
+                  id="localEvento"
+                  value={form.localEvento || ''}
+                  onChange={(e) => setForm({ ...form, localEvento: e.target.value })}
+                  placeholder="Ex: Presidente Dutra, Rua ABC..."
                 />
               </div>
             </CardContent>
           </Card>
 
+          {/* Carta de Drinks */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Carta de Drinks</CardTitle>
+              <CardDescription>
+                Adicione os drinks que serão servidos no evento
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex gap-2">
+                <Input
+                  value={novoDrink}
+                  onChange={(e) => setNovoDrink(e.target.value)}
+                  placeholder="Ex: Siciliana, Sol Nascente, Gin Tônica..."
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      e.preventDefault();
+                      addDrink();
+                    }
+                  }}
+                />
+                <Button type="button" onClick={addDrink} size="icon">
+                  <Plus className="h-4 w-4" />
+                </Button>
+              </div>
+              
+              {form.cartasDrinks && form.cartasDrinks.length > 0 && (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {form.cartasDrinks.map((drink, index) => (
+                    <div 
+                      key={index} 
+                      className="flex items-center justify-between gap-2 p-3 bg-secondary/20 rounded-lg border border-border"
+                    >
+                      <span className="font-medium">{drink}</span>
+                      <Button
+                        type="button"
+                        size="icon"
+                        variant="ghost"
+                        onClick={() => removeDrink(index)}
+                        className="h-8 w-8"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {(!form.cartasDrinks || form.cartasDrinks.length === 0) && (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum drink adicionado ainda
+                </p>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Equipamentos e Serviços */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Equipamentos e Serviços</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="numeroBartendes">Número de Bartenders</Label>
+                <Input
+                  id="numeroBartendes"
+                  type="number"
+                  min="1"
+                  value={form.numeroBartendes || 2}
+                  onChange={(e) => setForm({ ...form, numeroBartendes: Number(e.target.value) })}
+                />
+                <p className="text-sm text-muted-foreground">
+                  Bartenders dimensionados para {form.numeroConvidados || 0} convidados
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="estrutura">Estrutura Fornecida</Label>
+                <Textarea
+                  id="estrutura"
+                  value={form.estrutura || ''}
+                  onChange={(e) => setForm({ ...form, estrutura: e.target.value })}
+                  rows={3}
+                  placeholder="Descreva a estrutura que será fornecida para o evento..."
+                />
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Condições Financeiras */}
+          <Card className="border-primary/20">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-primary" />
+                Condições Financeiras
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="valorTotal">Valor Total do Serviço (R$)</Label>
+                  <Input
+                    id="valorTotal"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.condicoesFinanceiras?.valorTotal || 0}
+                    onChange={(e) => setForm({
+                      ...form,
+                      condicoesFinanceiras: {
+                        ...form.condicoesFinanceiras,
+                        valorTotal: Number(e.target.value)
+                      }
+                    })}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="horarioExtra">Valor Horário Extra (R$)</Label>
+                  <Input
+                    id="horarioExtra"
+                    type="number"
+                    step="0.01"
+                    min="0"
+                    value={form.horarioExtra || 0}
+                    onChange={(e) => setForm({ ...form, horarioExtra: Number(e.target.value) })}
+                  />
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4 bg-muted/50 p-4 rounded-lg">
+                <h4 className="font-semibold">Condições de Pagamento</h4>
+                
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="percentualAntecipado">% Pagamento Antecipado</Label>
+                    <Input
+                      id="percentualAntecipado"
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={form.condicoesFinanceiras?.percentualAntecipado || 50}
+                      onChange={(e) => setForm({
+                        ...form,
+                        condicoesFinanceiras: {
+                          ...form.condicoesFinanceiras,
+                          percentualAntecipado: Number(e.target.value)
+                        }
+                      })}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="diasAntecedencia">Dias de Antecedência</Label>
+                    <Input
+                      id="diasAntecedencia"
+                      type="number"
+                      min="0"
+                      value={form.condicoesFinanceiras?.diasAntecedencia || 3}
+                      onChange={(e) => setForm({
+                        ...form,
+                        condicoesFinanceiras: {
+                          ...form.condicoesFinanceiras,
+                          diasAntecedencia: Number(e.target.value)
+                        }
+                      })}
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-3 border-t border-border">
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-sm font-medium">Valor do Sinal:</span>
+                    <span className="text-lg font-bold text-primary">
+                      {valorAntecipado.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Pagamento antecipado de {percentualAntecipado}% a confirmar {form.condicoesFinanceiras?.diasAntecedencia || 3} dias antes do evento
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-primary/10 p-4 rounded-lg border border-primary/20">
+                <div className="flex justify-between items-center">
+                  <span className="text-lg font-semibold">Valor Total:</span>
+                  <span className="text-2xl font-bold text-primary">
+                    {valorTotal.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                  </span>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {/* Botões de Ação */}
-          <div className="flex justify-end gap-2 pt-4">
+          <div className="flex justify-end gap-3 pt-4 border-t">
             <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
               Cancelar
             </Button>
-            <Button type="button" variant="secondary" onClick={generatePDF}>
-              <Download className="h-4 w-4 mr-2" />
-              Baixar PDF
-            </Button>
-            <Button type="button" onClick={handleSave}>
+            <Button type="button" onClick={handleSave} size="lg">
               Salvar Orçamento
             </Button>
           </div>
