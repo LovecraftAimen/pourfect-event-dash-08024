@@ -12,15 +12,17 @@ import { Textarea } from '@/components/ui/textarea';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { mockClientes, mockOrcamentos } from '@/data/mockData';
 import { Cliente, Orcamento } from '@/types';
-import { Plus, User, FileText, Pencil, Trash2, Mail, Phone, MapPin } from 'lucide-react';
+import { Plus, User, FileText, Pencil, Trash2, Mail, Phone, MapPin, Download, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { OrcamentoCalculator } from '@/components/OrcamentoCalculator';
+import { OrcamentoEditor } from '@/components/OrcamentoEditor';
 
 const Clientes = () => {
   const [clientes, setClientes] = useLocalStorage<Cliente[]>('clientes', mockClientes);
   const [orcamentos, setOrcamentos] = useLocalStorage<Orcamento[]>('orcamentos', mockOrcamentos);
   const [isClienteOpen, setIsClienteOpen] = useState(false);
   const [isOrcamentoOpen, setIsOrcamentoOpen] = useState(false);
+  const [isOrcamentoEditorOpen, setIsOrcamentoEditorOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [editingOrcamento, setEditingOrcamento] = useState<Orcamento | null>(null);
   const { toast } = useToast();
@@ -102,8 +104,19 @@ const Clientes = () => {
 
   const handleEditOrcamento = (orcamento: Orcamento) => {
     setEditingOrcamento(orcamento);
-    setOrcamentoForm(orcamento);
-    setIsOrcamentoOpen(true);
+    setIsOrcamentoEditorOpen(true);
+  };
+
+  const handleSaveOrcamentoDetalhado = (orcamento: Orcamento) => {
+    if (editingOrcamento) {
+      setOrcamentos(orcamentos.map(o => o.id === editingOrcamento.id ? orcamento : o));
+      toast({ title: 'Orçamento atualizado com sucesso!' });
+    } else {
+      setOrcamentos([...orcamentos, orcamento]);
+      toast({ title: 'Orçamento criado com sucesso!' });
+    }
+    setIsOrcamentoEditorOpen(false);
+    setEditingOrcamento(null);
   };
 
   const handleDeleteCliente = (id: string) => {
@@ -300,12 +313,16 @@ const Clientes = () => {
           </TabsContent>
 
           <TabsContent value="orcamentos" className="space-y-4">
-            <div className="flex justify-end">
+            <div className="flex justify-end gap-2">
+              <Button onClick={() => { setEditingOrcamento(null); setIsOrcamentoEditorOpen(true); }}>
+                <Plus className="h-4 w-4 mr-2" />
+                Novo Orçamento Detalhado
+              </Button>
               <Dialog open={isOrcamentoOpen} onOpenChange={setIsOrcamentoOpen}>
                 <DialogTrigger asChild>
-                  <Button onClick={() => { setEditingOrcamento(null); resetOrcamentoForm(); }}>
+                  <Button variant="outline" onClick={() => { setEditingOrcamento(null); resetOrcamentoForm(); }}>
                     <Plus className="h-4 w-4 mr-2" />
-                    Novo Orçamento
+                    Orçamento Simples
                   </Button>
                 </DialogTrigger>
                 <DialogContent className="max-h-[90vh] overflow-y-auto max-w-[95vw] sm:max-w-lg">
@@ -423,11 +440,11 @@ const Clientes = () => {
                         <p className="text-sm text-muted-foreground">{orcamento.itens}</p>
                       </div>
                       <div className="flex gap-2 pt-2">
-                        <Button size="sm" variant="outline" onClick={() => handleEditOrcamento(orcamento)} className="flex-1">
-                          <Pencil className="h-3 w-3 mr-1" />
-                          Editar
+                        <Button size="sm" variant="outline" onClick={() => handleEditOrcamento(orcamento)}>
+                          <Eye className="h-3 w-3 mr-1" />
+                          Ver/Editar
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDeleteOrcamento(orcamento.id)} className="flex-1">
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteOrcamento(orcamento.id)}>
                           <Trash2 className="h-3 w-3 mr-1" />
                           Excluir
                         </Button>
@@ -443,6 +460,14 @@ const Clientes = () => {
             <OrcamentoCalculator />
           </TabsContent>
         </Tabs>
+
+        <OrcamentoEditor
+          orcamento={editingOrcamento}
+          clientes={clientes}
+          open={isOrcamentoEditorOpen}
+          onOpenChange={setIsOrcamentoEditorOpen}
+          onSave={handleSaveOrcamentoDetalhado}
+        />
       </div>
     </DashboardLayout>
   );

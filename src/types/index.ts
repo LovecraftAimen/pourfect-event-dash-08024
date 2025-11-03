@@ -53,6 +53,29 @@ export interface Orcamento {
   status: 'enviado' | 'aprovado' | 'recusado';
   dataEnvio: string;
   itens: string;
+  // Detalhes completos do orçamento
+  nomeEvento?: string;
+  dataEvento?: string;
+  horarioAbertura?: string;
+  horarioFechamento?: string;
+  localEvento?: string;
+  numeroConvidados?: number;
+  cartasDrinks?: string[];
+  numeroBartendes?: number;
+  estrutura?: string;
+  condicoesFinanceiras?: {
+    valorTotal: number;
+    pagamentoAntecipado?: number;
+    percentualAntecipado?: number;
+    diasAntecedencia?: number;
+  };
+  horarioExtra?: number;
+  listaInsumos?: {
+    distilados?: { nome: string; quantidade: string }[];
+    frutas?: { nome: string; quantidade: string }[];
+    outrasBebidas?: { nome: string; quantidade: string }[];
+    outrosInsumos?: { nome: string; quantidade: string }[];
+  };
 }
 
 export interface MembroEquipe {
