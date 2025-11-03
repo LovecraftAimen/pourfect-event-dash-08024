@@ -4,8 +4,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
-import { Calculator, Users, DollarSign, Plus, Trash2 } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { Calculator, Users, DollarSign, Plus, Trash2, Wine } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { useLocalStorage } from '@/hooks/useLocalStorage';
+import { mockDrinks } from '@/data/mockData';
+import type { Drink } from '@/types';
 
 interface ItemEquipe {
   id: string;
@@ -30,10 +34,12 @@ interface ItemPreparo {
 
 export const OrcamentoCalculator = () => {
   const { toast } = useToast();
+  const [drinks] = useLocalStorage<Drink[]>('drinks', mockDrinks);
   const [nomeCliente, setNomeCliente] = useState('');
   const [dataEvento, setDataEvento] = useState('');
   const [numeroConvidados, setNumeroConvidados] = useState(120);
   const [localizacao, setLocalizacao] = useState('');
+  const [drinksSelecionados, setDrinksSelecionados] = useState<string[]>([]);
 
   // Equipe
   const [itensEquipe, setItensEquipe] = useState<ItemEquipe[]>([
@@ -100,6 +106,16 @@ export const OrcamentoCalculator = () => {
 
   const removeItemPreparo = (id: string) => {
     setItensPreparos(itensPreparos.filter(item => item.id !== id));
+  };
+
+  const addDrink = (drinkId: string) => {
+    if (!drinksSelecionados.includes(drinkId)) {
+      setDrinksSelecionados([...drinksSelecionados, drinkId]);
+    }
+  };
+
+  const removeDrink = (drinkId: string) => {
+    setDrinksSelecionados(drinksSelecionados.filter(id => id !== drinkId));
   };
 
   const salvarOrcamento = () => {
@@ -207,6 +223,87 @@ export const OrcamentoCalculator = () => {
               placeholder="Cidade/Local do evento"
             />
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Drinks do Evento */}
+      <Card>
+        <CardHeader>
+          <div className="flex justify-between items-center">
+            <CardTitle className="flex items-center gap-2">
+              <Wine className="h-5 w-5" />
+              Drinks do Evento
+            </CardTitle>
+          </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+            {drinks.map((drink) => {
+              const isSelecionado = drinksSelecionados.includes(drink.id);
+              return (
+                <button
+                  key={drink.id}
+                  onClick={() => isSelecionado ? removeDrink(drink.id) : addDrink(drink.id)}
+                  className={`p-3 rounded-lg border-2 text-left transition-all ${
+                    isSelecionado
+                      ? 'border-primary bg-primary/10'
+                      : 'border-border hover:border-primary/50'
+                  }`}
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex-1">
+                      <p className="font-medium">{drink.nome}</p>
+                      {drink.descricao && (
+                        <p className="text-xs text-muted-foreground mt-1">{drink.descricao}</p>
+                      )}
+                      <p className="text-sm text-primary font-semibold mt-2">
+                        {drink.precoVendaSugerido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
+                      </p>
+                    </div>
+                    {isSelecionado && (
+                      <Badge variant="default" className="shrink-0">
+                        Selecionado
+                      </Badge>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {drinksSelecionados.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum drink selecionado ainda
+            </p>
+          )}
+
+          {drinksSelecionados.length > 0 && (
+            <div className="mt-4 p-3 bg-secondary/20 rounded-lg">
+              <p className="text-sm font-semibold mb-2">
+                Drinks Selecionados ({drinksSelecionados.length}):
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {drinksSelecionados.map((drinkId) => {
+                  const drink = drinks.find(d => d.id === drinkId);
+                  if (!drink) return null;
+                  return (
+                    <Badge key={drinkId} variant="secondary" className="gap-1">
+                      {drink.nome}
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeDrink(drinkId);
+                        }}
+                        className="ml-1 hover:text-destructive"
+                      >
+                        ×
+                      </button>
+                    </Badge>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </CardContent>
       </Card>
 

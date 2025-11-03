@@ -12,9 +12,10 @@ import { Textarea } from '@/components/ui/textarea';
 import { useLocalStorage } from '@/hooks/useLocalStorage';
 import { mockClientes, mockOrcamentos } from '@/data/mockData';
 import { Cliente, Orcamento } from '@/types';
-import { Plus, User, FileText, Pencil, Trash2, Mail, Phone, MapPin } from 'lucide-react';
+import { Plus, User, FileText, Pencil, Trash2, Mail, Phone, MapPin, Eye } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { OrcamentoCalculator } from '@/components/OrcamentoCalculator';
+import { OrcamentoDetalhes } from '@/components/OrcamentoDetalhes';
 
 
 const Clientes = () => {
@@ -22,8 +23,10 @@ const Clientes = () => {
   const [orcamentos, setOrcamentos] = useLocalStorage<Orcamento[]>('orcamentos', mockOrcamentos);
   const [isClienteOpen, setIsClienteOpen] = useState(false);
   const [isOrcamentoOpen, setIsOrcamentoOpen] = useState(false);
+  const [isDetalhesOpen, setIsDetalhesOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [editingOrcamento, setEditingOrcamento] = useState<Orcamento | null>(null);
+  const [viewingOrcamento, setViewingOrcamento] = useState<Orcamento | null>(null);
   const { toast } = useToast();
 
   const [clienteForm, setClienteForm] = useState<Partial<Cliente>>({
@@ -105,6 +108,16 @@ const Clientes = () => {
     setEditingOrcamento(orcamento);
     setOrcamentoForm(orcamento);
     setIsOrcamentoOpen(true);
+  };
+
+  const handleViewOrcamento = (orcamento: Orcamento) => {
+    setViewingOrcamento(orcamento);
+    setIsDetalhesOpen(true);
+  };
+
+  const handleSaveDetalhes = (orcamento: Orcamento) => {
+    setOrcamentos(orcamentos.map(o => o.id === orcamento.id ? orcamento : o));
+    toast({ title: 'Orçamento atualizado com sucesso!' });
   };
 
   const handleDeleteCliente = (id: string) => {
@@ -424,6 +437,10 @@ const Clientes = () => {
                         <p className="text-sm text-muted-foreground">{orcamento.itens}</p>
                       </div>
                       <div className="flex gap-2 pt-2">
+                        <Button size="sm" variant="outline" onClick={() => handleViewOrcamento(orcamento)} className="flex-1">
+                          <Eye className="h-3 w-3 mr-1" />
+                          Ver Detalhes
+                        </Button>
                         <Button size="sm" variant="outline" onClick={() => handleEditOrcamento(orcamento)} className="flex-1">
                           <Pencil className="h-3 w-3 mr-1" />
                           Editar
@@ -444,6 +461,14 @@ const Clientes = () => {
             <OrcamentoCalculator />
           </TabsContent>
         </Tabs>
+
+        <OrcamentoDetalhes
+          orcamento={viewingOrcamento}
+          clientes={clientes}
+          open={isDetalhesOpen}
+          onOpenChange={setIsDetalhesOpen}
+          onSave={handleSaveDetalhes}
+        />
       </div>
     </DashboardLayout>
   );
