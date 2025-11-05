@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/Layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,11 +7,11 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockProdutos } from '@/data/mockData';
 import { Produto } from '@/types';
-import { Plus, AlertTriangle, Package, Pencil, Trash2 } from 'lucide-react';
+import { Plus, AlertTriangle, Package, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Skeleton } from '@/components/ui/skeleton';
 import {
   Table,
   TableBody,
@@ -22,14 +22,16 @@ import {
 } from '@/components/ui/table';
 
 const Estoque = () => {
-  const [produtos, setProdutos] = useLocalStorage<Produto[]>('produtos', mockProdutos);
-  const [categorias, setCategorias] = useLocalStorage<string[]>('categorias', ['Bebidas', 'Insumos', 'Descartáveis', 'Utensílios', 'Alimentos', 'Decoração']);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [categorias, setCategorias] = useState<string[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isCategoriaOpen, setIsCategoriaOpen] = useState(false);
   const [editingProduto, setEditingProduto] = useState<Produto | null>(null);
   const [novaCategoria, setNovaCategoria] = useState('');
   const [filtroCategoria, setFiltroCategoria] = useState<string>('todas');
   const [filtroValidade, setFiltroValidade] = useState<string>('todas');
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
 
   const [formData, setFormData] = useState<Partial<Produto>>({
@@ -43,22 +45,109 @@ const Estoque = () => {
     dataValidade: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    if (editingProduto) {
-      setProdutos(produtos.map(p => p.id === editingProduto.id ? { ...formData, id: editingProduto.id } as Produto : p));
-      toast({ title: 'Produto atualizado com sucesso!' });
-    } else {
-      const novoProduto: Produto = {
-        ...formData,
-        id: Date.now().toString(),
-      } as Produto;
-      setProdutos([...produtos, novoProduto]);
-      toast({ title: 'Produto adicionado com sucesso!' });
+  // Carregar dados do Supabase
+  useEffect(() => {
+    loadProdutos();
+    loadCategorias();
+  }, []);
+
+  const loadProdutos = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('produtos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const produtosFormatados: Produto[] = (data || []).map(p => ({
+        id: p.id,
+        nome: p.nome,
+        categoria: p.categoria,
+        quantidade: Number(p.quantidade),
+        capacidadeProduto: p.capacidade_produto ? Number(p.capacidade_produto) : undefined,
+        unidade: p.unidade as 'unidade' | 'ml' | 'g',
+        alertaReposicao: Number(p.alerta_reposicao),
+        precoCompra: Number(p.preco_compra),
+        dataValidade: p.data_validade || undefined,
+      }));
+
+      setProdutos(produtosFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar produtos',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
     }
-    
-    resetForm();
+  };
+
+  const loadCategorias = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('categorias')
+        .select('nome')
+        .order('nome');
+
+      if (error) throw error;
+
+      setCategorias((data || []).map(c => c.nome));
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar categorias',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSubmitting(true);
+
+    try {
+      const produtoData = {
+        nome: formData.nome!,
+        categoria: formData.categoria!,
+        quantidade: formData.quantidade!,
+        capacidade_produto: formData.capacidadeProduto || null,
+        unidade: formData.unidade!,
+        alerta_reposicao: formData.alertaReposicao!,
+        preco_compra: formData.precoCompra!,
+        data_validade: formData.dataValidade || null,
+      };
+
+      if (editingProduto) {
+        const { error } = await supabase
+          .from('produtos')
+          .update(produtoData)
+          .eq('id', editingProduto.id);
+
+        if (error) throw error;
+        toast({ title: 'Produto atualizado com sucesso!' });
+      } else {
+        const { error } = await supabase
+          .from('produtos')
+          .insert([produtoData]);
+
+        if (error) throw error;
+        toast({ title: 'Produto adicionado com sucesso!' });
+      }
+
+      await loadProdutos();
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar produto',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const resetForm = () => {
@@ -82,33 +171,86 @@ const Estoque = () => {
     setIsOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setProdutos(produtos.filter(p => p.id !== id));
-    toast({ title: 'Produto excluído com sucesso!' });
-  };
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('produtos')
+        .delete()
+        .eq('id', id);
 
-  const handleAddCategoria = () => {
-    if (novaCategoria.trim() && !categorias.includes(novaCategoria.trim())) {
-      setCategorias([...categorias, novaCategoria.trim()]);
-      toast({ title: 'Categoria adicionada com sucesso!' });
-      setNovaCategoria('');
-    } else {
-      toast({ title: 'Categoria já existe ou inválida', variant: 'destructive' });
+      if (error) throw error;
+
+      toast({ title: 'Produto excluído com sucesso!' });
+      await loadProdutos();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir produto',
+        description: error.message,
+        variant: 'destructive',
+      });
     }
   };
 
-  const handleDeleteCategoria = (categoria: string) => {
+  const handleAddCategoria = async () => {
+    if (!novaCategoria.trim()) {
+      toast({ title: 'Nome da categoria é obrigatório', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('categorias')
+        .insert([{ nome: novaCategoria.trim() }]);
+
+      if (error) {
+        if (error.code === '23505') { // Unique violation
+          toast({ title: 'Categoria já existe', variant: 'destructive' });
+        } else {
+          throw error;
+        }
+        return;
+      }
+
+      toast({ title: 'Categoria adicionada com sucesso!' });
+      setNovaCategoria('');
+      await loadCategorias();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao adicionar categoria',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleDeleteCategoria = async (categoria: string) => {
     const produtosUsandoCategoria = produtos.filter(p => p.categoria === categoria);
     if (produtosUsandoCategoria.length > 0) {
-      toast({ 
-        title: 'Não é possível deletar esta categoria', 
+      toast({
+        title: 'Não é possível deletar esta categoria',
         description: `${produtosUsandoCategoria.length} produto(s) estão usando esta categoria.`,
-        variant: 'destructive' 
+        variant: 'destructive'
       });
       return;
     }
-    setCategorias(categorias.filter(c => c !== categoria));
-    toast({ title: 'Categoria deletada com sucesso!' });
+
+    try {
+      const { error } = await supabase
+        .from('categorias')
+        .delete()
+        .eq('nome', categoria);
+
+      if (error) throw error;
+
+      toast({ title: 'Categoria deletada com sucesso!' });
+      await loadCategorias();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao deletar categoria',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   const isProximoVencimento = (dataValidade?: string) => {
@@ -143,6 +285,41 @@ const Estoque = () => {
   const produtosProximosVencimento = produtos.filter(p => isProximoVencimento(p.dataValidade));
   const produtosVencidos = produtos.filter(p => isVencido(p.dataValidade));
   const valorTotalEstoque = produtos.reduce((acc, p) => acc + (p.quantidade * p.precoCompra), 0);
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-4 md:space-y-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold">Estoque</h1>
+              <p className="text-sm md:text-base text-muted-foreground">Controle de produtos e insumos</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+            {[1, 2, 3].map(i => (
+              <Card key={i}>
+                <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-4 w-4 rounded-full" />
+                </CardHeader>
+                <CardContent>
+                  <Skeleton className="h-8 w-16" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+
+          <div className="grid gap-4">
+            {[1, 2, 3, 4].map(i => (
+              <Skeleton key={i} className="h-16 w-full" />
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -338,10 +515,11 @@ const Estoque = () => {
                 </div>
                 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={resetForm}>
+                  <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={submitting}>
+                    {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     {editingProduto ? 'Atualizar' : 'Adicionar'} Produto
                   </Button>
                 </div>
