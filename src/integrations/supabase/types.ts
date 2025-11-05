@@ -32,6 +32,78 @@ export type Database = {
         }
         Relationships: []
       }
+      drink_ingredientes: {
+        Row: {
+          created_at: string
+          drink_id: string
+          id: string
+          produto_id: string
+          quantidade: number
+          unidade: string
+        }
+        Insert: {
+          created_at?: string
+          drink_id: string
+          id?: string
+          produto_id: string
+          quantidade: number
+          unidade: string
+        }
+        Update: {
+          created_at?: string
+          drink_id?: string
+          id?: string
+          produto_id?: string
+          quantidade?: number
+          unidade?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "drink_ingredientes_drink_id_fkey"
+            columns: ["drink_id"]
+            isOneToOne: false
+            referencedRelation: "drinks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "drink_ingredientes_produto_id_fkey"
+            columns: ["produto_id"]
+            isOneToOne: false
+            referencedRelation: "produtos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      drinks: {
+        Row: {
+          created_at: string
+          custo_total: number
+          descricao: string | null
+          id: string
+          nome: string
+          preco_venda_sugerido: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          custo_total?: number
+          descricao?: string | null
+          id?: string
+          nome: string
+          preco_venda_sugerido?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          custo_total?: number
+          descricao?: string | null
+          id?: string
+          nome?: string
+          preco_venda_sugerido?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       produtos: {
         Row: {
           alerta_reposicao: number

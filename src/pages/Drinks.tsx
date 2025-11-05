@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/Layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,18 +7,104 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockDrinks, mockProdutos } from '@/data/mockData';
-import { Drink, Ingrediente } from '@/types';
-import { Plus, Beaker, DollarSign, Pencil, Trash2, X } from 'lucide-react';
+import { Drink, Ingrediente, Produto } from '@/types';
+import { Plus, Beaker, Pencil, Trash2, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Skeleton } from '@/components/ui/skeleton';
 
 const Drinks = () => {
-  const [drinks, setDrinks] = useLocalStorage<Drink[]>('drinks', mockDrinks);
-  const [produtos] = useLocalStorage('produtos', mockProdutos);
+  const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [editingDrink, setEditingDrink] = useState<Drink | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const { toast } = useToast();
+
+  useEffect(() => {
+    loadDrinks();
+    loadProdutos();
+  }, []);
+
+  const loadProdutos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('produtos')
+        .select('*')
+        .order('nome');
+
+      if (error) throw error;
+
+      const produtosFormatados: Produto[] = (data || []).map(p => ({
+        id: p.id,
+        nome: p.nome,
+        categoria: p.categoria,
+        quantidade: Number(p.quantidade),
+        capacidadeProduto: p.capacidade_produto ? Number(p.capacidade_produto) : undefined,
+        unidade: p.unidade as 'unidade' | 'ml' | 'g',
+        alertaReposicao: Number(p.alerta_reposicao),
+        precoCompra: Number(p.preco_compra),
+        dataValidade: p.data_validade || undefined,
+      }));
+
+      setProdutos(produtosFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar produtos',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const loadDrinks = async () => {
+    try {
+      setLoading(true);
+      const { data: drinksData, error: drinksError } = await supabase
+        .from('drinks')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (drinksError) throw drinksError;
+
+      const drinksComIngredientes = await Promise.all(
+        (drinksData || []).map(async (drink) => {
+          const { data: ingredientesData, error: ingredientesError } = await supabase
+            .from('drink_ingredientes')
+            .select('*')
+            .eq('drink_id', drink.id);
+
+          if (ingredientesError) throw ingredientesError;
+
+          const ingredientes: Ingrediente[] = (ingredientesData || []).map(ing => ({
+            produtoId: ing.produto_id,
+            quantidade: Number(ing.quantidade),
+            unidade: ing.unidade,
+          }));
+
+          return {
+            id: drink.id,
+            nome: drink.nome,
+            descricao: drink.descricao || undefined,
+            ingredientes,
+            custoTotal: Number(drink.custo_total),
+            precoVendaSugerido: Number(drink.preco_venda_sugerido),
+          } as Drink;
+        })
+      );
+
+      setDrinks(drinksComIngredientes);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar drinks',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const [formData, setFormData] = useState<Partial<Drink>>({
     nome: '',
@@ -79,27 +165,94 @@ const Drinks = () => {
     });
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.ingredientes || formData.ingredientes.length === 0) {
       toast({ title: 'Erro', description: 'Adicione pelo menos um ingrediente', variant: 'destructive' });
       return;
     }
-    
-    if (editingDrink) {
-      setDrinks(drinks.map(d => d.id === editingDrink.id ? { ...formData, id: editingDrink.id } as Drink : d));
-      toast({ title: 'Drink atualizado com sucesso!' });
-    } else {
-      const novoDrink: Drink = {
-        ...formData,
-        id: Date.now().toString(),
-      } as Drink;
-      setDrinks([...drinks, novoDrink]);
-      toast({ title: 'Drink criado com sucesso!' });
+
+    setSubmitting(true);
+
+    try {
+      const drinkData = {
+        nome: formData.nome!,
+        descricao: formData.descricao || null,
+        custo_total: formData.custoTotal!,
+        preco_venda_sugerido: formData.precoVendaSugerido!,
+      };
+
+      if (editingDrink) {
+        // Atualizar drink
+        const { error: drinkError } = await supabase
+          .from('drinks')
+          .update(drinkData)
+          .eq('id', editingDrink.id);
+
+        if (drinkError) throw drinkError;
+
+        // Deletar ingredientes antigos
+        const { error: deleteError } = await supabase
+          .from('drink_ingredientes')
+          .delete()
+          .eq('drink_id', editingDrink.id);
+
+        if (deleteError) throw deleteError;
+
+        // Inserir novos ingredientes
+        const ingredientesData = formData.ingredientes.map(ing => ({
+          drink_id: editingDrink.id,
+          produto_id: ing.produtoId,
+          quantidade: ing.quantidade,
+          unidade: ing.unidade,
+        }));
+
+        const { error: ingredientesError } = await supabase
+          .from('drink_ingredientes')
+          .insert(ingredientesData);
+
+        if (ingredientesError) throw ingredientesError;
+
+        toast({ title: 'Drink atualizado com sucesso!' });
+      } else {
+        // Criar novo drink
+        const { data: newDrink, error: drinkError } = await supabase
+          .from('drinks')
+          .insert([drinkData])
+          .select()
+          .single();
+
+        if (drinkError) throw drinkError;
+
+        // Inserir ingredientes
+        const ingredientesData = formData.ingredientes.map(ing => ({
+          drink_id: newDrink.id,
+          produto_id: ing.produtoId,
+          quantidade: ing.quantidade,
+          unidade: ing.unidade,
+        }));
+
+        const { error: ingredientesError } = await supabase
+          .from('drink_ingredientes')
+          .insert(ingredientesData);
+
+        if (ingredientesError) throw ingredientesError;
+
+        toast({ title: 'Drink criado com sucesso!' });
+      }
+
+      await loadDrinks();
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar drink',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
     }
-    
-    resetForm();
   };
 
   const resetForm = () => {
@@ -120,15 +273,60 @@ const Drinks = () => {
     setIsOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setDrinks(drinks.filter(d => d.id !== id));
-    toast({ title: 'Drink excluído com sucesso!' });
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('drinks')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({ title: 'Drink excluído com sucesso!' });
+      await loadDrinks();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir drink',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   const calcularMargem = (custo: number, venda: number) => {
     if (custo === 0) return 0;
     return ((venda - custo) / custo * 100).toFixed(1);
   };
+
+  if (loading) {
+    return (
+      <DashboardLayout>
+        <div className="space-y-6">
+          <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold">Drinks & Precificação</h1>
+              <p className="text-sm text-muted-foreground">Gerencie fichas técnicas e custos</p>
+            </div>
+          </div>
+
+          <div className="grid gap-3 sm:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map(i => (
+              <Card key={i}>
+                <CardHeader className="pb-3">
+                  <Skeleton className="h-6 w-32" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-16 w-full" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout>
@@ -269,10 +467,11 @@ const Drinks = () => {
                 </div>
                 
                 <div className="flex flex-col sm:flex-row justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto">
+                  <Button type="button" variant="outline" onClick={resetForm} className="w-full sm:w-auto" disabled={submitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit" className="w-full sm:w-auto">
+                  <Button type="submit" className="w-full sm:w-auto" disabled={submitting}>
+                    {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     {editingDrink ? 'Atualizar' : 'Criar'} Drink
                   </Button>
                 </div>
