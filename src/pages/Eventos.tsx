@@ -1,26 +1,80 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/Layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockEventos, mockClientes } from '@/data/mockData';
 import { Evento } from '@/types';
-import { Plus, Calendar, MapPin, Users, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Calendar, MapPin, Users, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Eventos = () => {
-  const [eventos, setEventos] = useLocalStorage<Evento[]>('eventos', mockEventos);
-  const [clientes] = useLocalStorage('clientes', mockClientes);
+  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [clientes, setClientes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isOpen, setIsOpen] = useState(false);
   const [editingEvento, setEditingEvento] = useState<Evento | null>(null);
   const [filtroStatus, setFiltroStatus] = useState<string>('todos');
   const { toast } = useToast();
+
+  useEffect(() => {
+    loadEventos();
+    loadClientes();
+  }, []);
+
+  const loadEventos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('eventos')
+        .select('*')
+        .order('data_inicio', { ascending: false });
+
+      if (error) throw error;
+
+      const eventosFormatados: Evento[] = (data || []).map(e => ({
+        id: e.id,
+        nome: e.nome,
+        dataInicio: e.data_inicio,
+        dataFim: e.data_fim,
+        local: e.local,
+        status: e.status as 'confirmado' | 'pendente' | 'cancelado',
+        numeroConvidados: e.numero_convidados,
+        clienteId: e.cliente_id,
+        observacoes: e.observacoes || undefined,
+      }));
+
+      setEventos(eventosFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar eventos',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadClientes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('id, nome')
+        .order('nome');
+
+      if (error) throw error;
+      setClientes(data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar clientes:', error);
+    }
+  };
 
   const [formData, setFormData] = useState<Partial<Evento>>({
     nome: '',
@@ -33,22 +87,57 @@ const Eventos = () => {
     observacoes: '',
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     
-    if (editingEvento) {
-      setEventos(eventos.map(ev => ev.id === editingEvento.id ? { ...formData, id: editingEvento.id } as Evento : ev));
-      toast({ title: 'Evento atualizado com sucesso!' });
-    } else {
-      const novoEvento: Evento = {
-        ...formData,
-        id: Date.now().toString(),
-      } as Evento;
-      setEventos([...eventos, novoEvento]);
-      toast({ title: 'Evento criado com sucesso!' });
+    try {
+      if (editingEvento) {
+        const { error } = await supabase
+          .from('eventos')
+          .update({
+            nome: formData.nome,
+            data_inicio: formData.dataInicio,
+            data_fim: formData.dataFim,
+            local: formData.local,
+            status: formData.status,
+            numero_convidados: formData.numeroConvidados,
+            cliente_id: formData.clienteId,
+            observacoes: formData.observacoes,
+          })
+          .eq('id', editingEvento.id);
+
+        if (error) throw error;
+        toast({ title: 'Evento atualizado com sucesso!' });
+      } else {
+        const { error } = await supabase
+          .from('eventos')
+          .insert([{
+            nome: formData.nome,
+            data_inicio: formData.dataInicio,
+            data_fim: formData.dataFim,
+            local: formData.local,
+            status: formData.status,
+            numero_convidados: formData.numeroConvidados,
+            cliente_id: formData.clienteId,
+            observacoes: formData.observacoes,
+          }]);
+
+        if (error) throw error;
+        toast({ title: 'Evento criado com sucesso!' });
+      }
+      
+      await loadEventos();
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar evento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
     }
-    
-    resetForm();
   };
 
   const resetForm = () => {
@@ -72,9 +161,24 @@ const Eventos = () => {
     setIsOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    setEventos(eventos.filter(ev => ev.id !== id));
-    toast({ title: 'Evento excluído com sucesso!' });
+  const handleDelete = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('eventos')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      await loadEventos();
+      toast({ title: 'Evento excluído com sucesso!' });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir evento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -208,10 +312,11 @@ const Eventos = () => {
                 </div>
                 
                 <div className="flex justify-end gap-2">
-                  <Button type="button" variant="outline" onClick={resetForm}>
+                  <Button type="button" variant="outline" onClick={resetForm} disabled={submitting}>
                     Cancelar
                   </Button>
-                  <Button type="submit">
+                  <Button type="submit" disabled={submitting}>
+                    {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                     {editingEvento ? 'Atualizar' : 'Criar'} Evento
                   </Button>
                 </div>
@@ -251,8 +356,24 @@ const Eventos = () => {
           </Button>
         </div>
 
-        <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-          {eventosFiltrados.map((evento) => {
+        {loading ? (
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3].map((i) => (
+              <Card key={i}>
+                <CardHeader>
+                  <Skeleton className="h-6 w-3/4" />
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-full" />
+                  <Skeleton className="h-4 w-2/3" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+            {eventosFiltrados.map((evento) => {
             const cliente = clientes.find(c => c.id === evento.clienteId);
             return (
               <Card key={evento.id}>
@@ -301,7 +422,8 @@ const Eventos = () => {
               </Card>
             );
           })}
-        </div>
+          </div>
+        )}
       </div>
     </DashboardLayout>
   );

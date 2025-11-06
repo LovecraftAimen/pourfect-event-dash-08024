@@ -134,6 +134,56 @@ export type Database = {
         }
         Relationships: []
       }
+      eventos: {
+        Row: {
+          cliente_id: string
+          created_at: string
+          data_fim: string
+          data_inicio: string
+          id: string
+          local: string
+          nome: string
+          numero_convidados: number
+          observacoes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cliente_id: string
+          created_at?: string
+          data_fim: string
+          data_inicio: string
+          id?: string
+          local: string
+          nome: string
+          numero_convidados?: number
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cliente_id?: string
+          created_at?: string
+          data_fim?: string
+          data_inicio?: string
+          id?: string
+          local?: string
+          nome?: string
+          numero_convidados?: number
+          observacoes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "eventos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       orcamentos: {
         Row: {
           cartas_drinks: Json | null
