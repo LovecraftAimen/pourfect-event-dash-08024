@@ -32,6 +32,36 @@ export type Database = {
         }
         Relationships: []
       }
+      clientes: {
+        Row: {
+          created_at: string
+          email: string
+          endereco: string | null
+          id: string
+          nome: string
+          telefone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          endereco?: string | null
+          id?: string
+          nome: string
+          telefone: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          endereco?: string | null
+          id?: string
+          nome?: string
+          telefone?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       drink_ingredientes: {
         Row: {
           created_at: string
@@ -103,6 +133,86 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      orcamentos: {
+        Row: {
+          cartas_drinks: Json | null
+          cliente_id: string
+          condicoes_financeiras: Json | null
+          created_at: string
+          data_envio: string
+          data_evento: string | null
+          estrutura: string | null
+          evento_id: string | null
+          horario_abertura: string | null
+          horario_extra: number | null
+          horario_fechamento: string | null
+          id: string
+          itens: string
+          lista_insumos: Json | null
+          local_evento: string | null
+          nome_evento: string | null
+          numero_bartendes: number | null
+          numero_convidados: number | null
+          status: string
+          updated_at: string
+          valor_total: number
+        }
+        Insert: {
+          cartas_drinks?: Json | null
+          cliente_id: string
+          condicoes_financeiras?: Json | null
+          created_at?: string
+          data_envio: string
+          data_evento?: string | null
+          estrutura?: string | null
+          evento_id?: string | null
+          horario_abertura?: string | null
+          horario_extra?: number | null
+          horario_fechamento?: string | null
+          id?: string
+          itens: string
+          lista_insumos?: Json | null
+          local_evento?: string | null
+          nome_evento?: string | null
+          numero_bartendes?: number | null
+          numero_convidados?: number | null
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Update: {
+          cartas_drinks?: Json | null
+          cliente_id?: string
+          condicoes_financeiras?: Json | null
+          created_at?: string
+          data_envio?: string
+          data_evento?: string | null
+          estrutura?: string | null
+          evento_id?: string | null
+          horario_abertura?: string | null
+          horario_extra?: number | null
+          horario_fechamento?: string | null
+          id?: string
+          itens?: string
+          lista_insumos?: Json | null
+          local_evento?: string | null
+          nome_evento?: string | null
+          numero_bartendes?: number | null
+          numero_convidados?: number | null
+          status?: string
+          updated_at?: string
+          valor_total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "orcamentos_cliente_id_fkey"
+            columns: ["cliente_id"]
+            isOneToOne: false
+            referencedRelation: "clientes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       produtos: {
         Row: {

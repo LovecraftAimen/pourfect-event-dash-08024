@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/Layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,18 +9,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockClientes, mockOrcamentos } from '@/data/mockData';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Cliente, Orcamento } from '@/types';
-import { Plus, User, FileText, Pencil, Trash2, Mail, Phone, MapPin, Eye } from 'lucide-react';
+import { Plus, User, FileText, Pencil, Trash2, Mail, Phone, MapPin, Eye, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { OrcamentoCalculator } from '@/components/OrcamentoCalculator';
 import { OrcamentoDetalhes } from '@/components/OrcamentoDetalhes';
+import { supabase } from '@/integrations/supabase/client';
 
 
 const Clientes = () => {
-  const [clientes, setClientes] = useLocalStorage<Cliente[]>('clientes', mockClientes);
-  const [orcamentos, setOrcamentos] = useLocalStorage<Orcamento[]>('orcamentos', mockOrcamentos);
+  const [clientes, setClientes] = useState<Cliente[]>([]);
+  const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isClienteOpen, setIsClienteOpen] = useState(false);
   const [isOrcamentoOpen, setIsOrcamentoOpen] = useState(false);
   const [isDetalhesOpen, setIsDetalhesOpen] = useState(false);
@@ -28,6 +30,81 @@ const Clientes = () => {
   const [editingOrcamento, setEditingOrcamento] = useState<Orcamento | null>(null);
   const [viewingOrcamento, setViewingOrcamento] = useState<Orcamento | null>(null);
   const { toast } = useToast();
+
+  useEffect(() => {
+    loadClientes();
+    loadOrcamentos();
+  }, []);
+
+  const loadClientes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('clientes')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const clientesFormatados: Cliente[] = (data || []).map(c => ({
+        id: c.id,
+        nome: c.nome,
+        email: c.email,
+        telefone: c.telefone,
+        endereco: c.endereco || '',
+      }));
+
+      setClientes(clientesFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar clientes',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadOrcamentos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('orcamentos')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const orcamentosFormatados: Orcamento[] = (data || []).map(o => ({
+        id: o.id,
+        clienteId: o.cliente_id,
+        eventoId: o.evento_id || undefined,
+        valorTotal: Number(o.valor_total),
+        status: o.status as 'enviado' | 'aprovado' | 'recusado',
+        dataEnvio: o.data_envio,
+        itens: o.itens,
+        nomeEvento: o.nome_evento || undefined,
+        dataEvento: o.data_evento || undefined,
+        horarioAbertura: o.horario_abertura || undefined,
+        horarioFechamento: o.horario_fechamento || undefined,
+        localEvento: o.local_evento || undefined,
+        numeroConvidados: o.numero_convidados || undefined,
+        cartasDrinks: Array.isArray(o.cartas_drinks) ? o.cartas_drinks as string[] : undefined,
+        numeroBartendes: o.numero_bartendes || undefined,
+        estrutura: o.estrutura || undefined,
+        condicoesFinanceiras: o.condicoes_financeiras as any || undefined,
+        horarioExtra: o.horario_extra ? Number(o.horario_extra) : undefined,
+        listaInsumos: o.lista_insumos as any || undefined,
+      }));
+
+      setOrcamentos(orcamentosFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar orçamentos',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
+  };
 
   const [clienteForm, setClienteForm] = useState<Partial<Cliente>>({
     nome: '',
@@ -44,40 +121,96 @@ const Clientes = () => {
     itens: '',
   });
 
-  const handleClienteSubmit = (e: React.FormEvent) => {
+  const handleClienteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     
-    if (editingCliente) {
-      setClientes(clientes.map(c => c.id === editingCliente.id ? { ...clienteForm, id: editingCliente.id } as Cliente : c));
-      toast({ title: 'Cliente atualizado com sucesso!' });
-    } else {
-      const novoCliente: Cliente = {
-        ...clienteForm,
-        id: Date.now().toString(),
-      } as Cliente;
-      setClientes([...clientes, novoCliente]);
-      toast({ title: 'Cliente cadastrado com sucesso!' });
+    try {
+      if (editingCliente) {
+        const { error } = await supabase
+          .from('clientes')
+          .update({
+            nome: clienteForm.nome,
+            email: clienteForm.email,
+            telefone: clienteForm.telefone,
+            endereco: clienteForm.endereco,
+          })
+          .eq('id', editingCliente.id);
+
+        if (error) throw error;
+        toast({ title: 'Cliente atualizado com sucesso!' });
+      } else {
+        const { error } = await supabase
+          .from('clientes')
+          .insert([{
+            nome: clienteForm.nome,
+            email: clienteForm.email,
+            telefone: clienteForm.telefone,
+            endereco: clienteForm.endereco,
+          }]);
+
+        if (error) throw error;
+        toast({ title: 'Cliente cadastrado com sucesso!' });
+      }
+      
+      await loadClientes();
+      resetClienteForm();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar cliente',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
     }
-    
-    resetClienteForm();
   };
 
-  const handleOrcamentoSubmit = (e: React.FormEvent) => {
+  const handleOrcamentoSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSubmitting(true);
     
-    if (editingOrcamento) {
-      setOrcamentos(orcamentos.map(o => o.id === editingOrcamento.id ? { ...orcamentoForm, id: editingOrcamento.id } as Orcamento : o));
-      toast({ title: 'Orçamento atualizado com sucesso!' });
-    } else {
-      const novoOrcamento: Orcamento = {
-        ...orcamentoForm,
-        id: Date.now().toString(),
-      } as Orcamento;
-      setOrcamentos([...orcamentos, novoOrcamento]);
-      toast({ title: 'Orçamento criado com sucesso!' });
+    try {
+      if (editingOrcamento) {
+        const { error } = await supabase
+          .from('orcamentos')
+          .update({
+            cliente_id: orcamentoForm.clienteId,
+            valor_total: orcamentoForm.valorTotal,
+            status: orcamentoForm.status,
+            data_envio: orcamentoForm.dataEnvio,
+            itens: orcamentoForm.itens,
+          })
+          .eq('id', editingOrcamento.id);
+
+        if (error) throw error;
+        toast({ title: 'Orçamento atualizado com sucesso!' });
+      } else {
+        const { error } = await supabase
+          .from('orcamentos')
+          .insert([{
+            cliente_id: orcamentoForm.clienteId,
+            valor_total: orcamentoForm.valorTotal,
+            status: orcamentoForm.status,
+            data_envio: orcamentoForm.dataEnvio,
+            itens: orcamentoForm.itens,
+          }]);
+
+        if (error) throw error;
+        toast({ title: 'Orçamento criado com sucesso!' });
+      }
+      
+      await loadOrcamentos();
+      resetOrcamentoForm();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar orçamento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
     }
-    
-    resetOrcamentoForm();
   };
 
   const resetClienteForm = () => {
@@ -115,19 +248,77 @@ const Clientes = () => {
     setIsDetalhesOpen(true);
   };
 
-  const handleSaveDetalhes = (orcamento: Orcamento) => {
-    setOrcamentos(orcamentos.map(o => o.id === orcamento.id ? orcamento : o));
-    toast({ title: 'Orçamento atualizado com sucesso!' });
+  const handleSaveDetalhes = async (orcamento: Orcamento) => {
+    try {
+      const { error } = await supabase
+        .from('orcamentos')
+        .update({
+          nome_evento: orcamento.nomeEvento,
+          data_evento: orcamento.dataEvento,
+          horario_abertura: orcamento.horarioAbertura,
+          horario_fechamento: orcamento.horarioFechamento,
+          local_evento: orcamento.localEvento,
+          numero_convidados: orcamento.numeroConvidados,
+          cartas_drinks: orcamento.cartasDrinks,
+          numero_bartendes: orcamento.numeroBartendes,
+          estrutura: orcamento.estrutura,
+          condicoes_financeiras: orcamento.condicoesFinanceiras,
+          horario_extra: orcamento.horarioExtra,
+          lista_insumos: orcamento.listaInsumos,
+        })
+        .eq('id', orcamento.id);
+
+      if (error) throw error;
+      
+      await loadOrcamentos();
+      toast({ title: 'Orçamento atualizado com sucesso!' });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao atualizar orçamento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeleteCliente = (id: string) => {
-    setClientes(clientes.filter(c => c.id !== id));
-    toast({ title: 'Cliente excluído com sucesso!' });
+  const handleDeleteCliente = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('clientes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      await loadClientes();
+      toast({ title: 'Cliente excluído com sucesso!' });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir cliente',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
-  const handleDeleteOrcamento = (id: string) => {
-    setOrcamentos(orcamentos.filter(o => o.id !== id));
-    toast({ title: 'Orçamento excluído com sucesso!' });
+  const handleDeleteOrcamento = async (id: string) => {
+    try {
+      const { error } = await supabase
+        .from('orcamentos')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+      
+      await loadOrcamentos();
+      toast({ title: 'Orçamento excluído com sucesso!' });
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao excluir orçamento',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   const getStatusColor = (status: string) => {
@@ -253,10 +444,11 @@ const Clientes = () => {
                     </div>
                     
                     <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={resetClienteForm}>
+                      <Button type="button" variant="outline" onClick={resetClienteForm} disabled={submitting}>
                         Cancelar
                       </Button>
-                      <Button type="submit">
+                      <Button type="submit" disabled={submitting}>
+                        {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         {editingCliente ? 'Atualizar' : 'Cadastrar'} Cliente
                       </Button>
                     </div>
@@ -265,8 +457,24 @@ const Clientes = () => {
             </Dialog>
             </div>
 
-            <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
-              {clientes.map((cliente) => {
+            {loading ? (
+              <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-6 w-3/4" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-2/3" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3">
+                {clientes.map((cliente) => {
                 const clienteOrcamentos = orcamentos.filter(o => o.clienteId === cliente.id);
                 return (
                   <Card key={cliente.id}>
@@ -310,7 +518,8 @@ const Clientes = () => {
                   </Card>
                 );
               })}
-            </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="orcamentos" className="space-y-4">
@@ -394,10 +603,11 @@ const Clientes = () => {
                     </div>
                     
                     <div className="flex justify-end gap-2">
-                      <Button type="button" variant="outline" onClick={resetOrcamentoForm}>
+                      <Button type="button" variant="outline" onClick={resetOrcamentoForm} disabled={submitting}>
                         Cancelar
                       </Button>
-                      <Button type="submit">
+                      <Button type="submit" disabled={submitting}>
+                        {submitting && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                         {editingOrcamento ? 'Atualizar' : 'Criar'} Orçamento
                       </Button>
                     </div>
@@ -406,8 +616,24 @@ const Clientes = () => {
               </Dialog>
             </div>
 
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {orcamentos.map((orcamento) => {
+            {loading ? (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {[1, 2, 3].map((i) => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-6 w-3/4" />
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <Skeleton className="h-4 w-full" />
+                      <Skeleton className="h-4 w-1/2" />
+                      <Skeleton className="h-8 w-full" />
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {orcamentos.map((orcamento) => {
                 const cliente = clientes.find(c => c.id === orcamento.clienteId);
                 return (
                   <Card key={orcamento.id}>
@@ -454,7 +680,8 @@ const Clientes = () => {
                   </Card>
                 );
               })}
-            </div>
+              </div>
+            )}
           </TabsContent>
 
           <TabsContent value="calculadora">
