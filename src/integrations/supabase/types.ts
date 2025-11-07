@@ -306,6 +306,56 @@ export type Database = {
         }
         Relationships: []
       }
+      transacoes: {
+        Row: {
+          categoria: string
+          created_at: string
+          data_lancamento: string
+          descricao: string
+          evento_id: string | null
+          forma_pagamento: string | null
+          id: string
+          status: string
+          tipo: string
+          updated_at: string
+          valor: number
+        }
+        Insert: {
+          categoria: string
+          created_at?: string
+          data_lancamento: string
+          descricao: string
+          evento_id?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          status?: string
+          tipo: string
+          updated_at?: string
+          valor?: number
+        }
+        Update: {
+          categoria?: string
+          created_at?: string
+          data_lancamento?: string
+          descricao?: string
+          evento_id?: string | null
+          forma_pagamento?: string | null
+          id?: string
+          status?: string
+          tipo?: string
+          updated_at?: string
+          valor?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transacoes_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never

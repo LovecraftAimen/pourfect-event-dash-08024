@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/Layout/DashboardLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,15 +9,17 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockTransacoes, mockEventos } from '@/data/mockData';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Transacao } from '@/types';
-import { Plus, Edit, Trash2, TrendingUp, TrendingDown, DollarSign, AlertCircle } from 'lucide-react';
+import { Plus, Edit, Trash2, TrendingUp, TrendingDown, DollarSign, AlertCircle, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
 
 const Financeiro = () => {
-  const [transacoes, setTransacoes] = useLocalStorage<Transacao[]>('transacoes', mockTransacoes);
-  const [eventos] = useLocalStorage('eventos', mockEventos);
+  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const [eventos, setEventos] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTransacao, setEditingTransacao] = useState<Transacao | null>(null);
   const [filtroTipo, setFiltroTipo] = useState<'todos' | 'receita' | 'despesa'>('todos');
@@ -49,6 +51,54 @@ const Financeiro = () => {
     despesa: ['Estoque', 'Equipe', 'Operacional', 'Marketing', 'Outros'],
   };
 
+  useEffect(() => {
+    loadTransacoes();
+    loadEventos();
+  }, []);
+
+  const loadTransacoes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('transacoes')
+        .select('*')
+        .order('data_lancamento', { ascending: false });
+
+      if (error) throw error;
+
+      const transacoesFormatadas = (data || []).map(t => ({
+        id: t.id,
+        tipo: t.tipo as 'receita' | 'despesa',
+        categoria: t.categoria,
+        descricao: t.descricao,
+        valor: Number(t.valor),
+        dataLancamento: t.data_lancamento,
+        eventoId: t.evento_id || undefined,
+        status: t.status as 'pendente' | 'pago' | 'recebido',
+        formaPagamento: t.forma_pagamento || undefined,
+      }));
+
+      setTransacoes(transacoesFormatadas);
+    } catch (error: any) {
+      toast({ title: 'Erro ao carregar transações', description: error.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadEventos = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('eventos')
+        .select('id, nome')
+        .order('nome');
+
+      if (error) throw error;
+      setEventos(data || []);
+    } catch (error: any) {
+      console.error('Erro ao carregar eventos:', error);
+    }
+  };
+
   const resetForm = () => {
     setForm({
       tipo: 'receita',
@@ -63,34 +113,51 @@ const Financeiro = () => {
     setEditingTransacao(null);
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.categoria || !form.descricao || !form.valor || !form.dataLancamento) {
       toast({ title: 'Erro', description: 'Preencha todos os campos obrigatórios', variant: 'destructive' });
       return;
     }
 
-    const transacaoData: Transacao = {
-      id: editingTransacao?.id || Date.now().toString(),
-      tipo: form.tipo,
-      categoria: form.categoria,
-      descricao: form.descricao,
-      valor: parseFloat(form.valor),
-      dataLancamento: form.dataLancamento,
-      eventoId: form.eventoId === 'none' ? undefined : form.eventoId,
-      status: form.status,
-      formaPagamento: form.formaPagamento || undefined,
-    };
+    setSubmitting(true);
 
-    if (editingTransacao) {
-      setTransacoes(transacoes.map(t => t.id === editingTransacao.id ? transacaoData : t));
-      toast({ title: 'Transação atualizada com sucesso!' });
-    } else {
-      setTransacoes([...transacoes, transacaoData]);
-      toast({ title: 'Transação adicionada com sucesso!' });
+    try {
+      const transacaoData = {
+        tipo: form.tipo,
+        categoria: form.categoria,
+        descricao: form.descricao,
+        valor: parseFloat(form.valor),
+        data_lancamento: form.dataLancamento,
+        evento_id: form.eventoId === 'none' ? null : form.eventoId,
+        status: form.status,
+        forma_pagamento: form.formaPagamento || null,
+      };
+
+      if (editingTransacao) {
+        const { error } = await supabase
+          .from('transacoes')
+          .update(transacaoData)
+          .eq('id', editingTransacao.id);
+
+        if (error) throw error;
+        toast({ title: 'Transação atualizada com sucesso!' });
+      } else {
+        const { error } = await supabase
+          .from('transacoes')
+          .insert([transacaoData]);
+
+        if (error) throw error;
+        toast({ title: 'Transação adicionada com sucesso!' });
+      }
+
+      setIsDialogOpen(false);
+      resetForm();
+      loadTransacoes();
+    } catch (error: any) {
+      toast({ title: 'Erro ao salvar transação', description: error.message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
     }
-
-    setIsDialogOpen(false);
-    resetForm();
   };
 
   const handleEdit = (transacao: Transacao) => {
@@ -108,10 +175,21 @@ const Financeiro = () => {
     setIsDialogOpen(true);
   };
 
-  const handleDelete = (id: string) => {
-    if (confirm('Tem certeza que deseja excluir esta transação?')) {
-      setTransacoes(transacoes.filter(t => t.id !== id));
+  const handleDelete = async (id: string) => {
+    if (!confirm('Tem certeza que deseja excluir esta transação?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('transacoes')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
       toast({ title: 'Transação excluída com sucesso!' });
+      loadTransacoes();
+    } catch (error: any) {
+      toast({ title: 'Erro ao excluir transação', description: error.message, variant: 'destructive' });
     }
   };
 
@@ -305,7 +383,10 @@ const Financeiro = () => {
                       <Label>Forma de Pagamento</Label>
                       <Input value={form.formaPagamento} onChange={(e) => setForm({...form, formaPagamento: e.target.value})} placeholder="PIX, Cartão, etc" />
                     </div>
-                    <Button onClick={handleSave} className="w-full">Salvar</Button>
+                     <Button onClick={handleSave} className="w-full" disabled={submitting}>
+                       {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                       Salvar
+                     </Button>
                   </div>
                 </DialogContent>
               </Dialog>
@@ -335,21 +416,35 @@ const Financeiro = () => {
             </div>
 
             <div className="overflow-x-auto">
-              <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="min-w-[90px]">Data</TableHead>
-                  <TableHead className="min-w-[90px]">Tipo</TableHead>
-                  <TableHead className="min-w-[100px]">Categoria</TableHead>
-                  <TableHead className="min-w-[150px]">Descrição</TableHead>
-                  <TableHead className="min-w-[100px]">Evento</TableHead>
-                  <TableHead className="min-w-[100px]">Valor</TableHead>
-                  <TableHead className="min-w-[90px]">Status</TableHead>
-                  <TableHead className="text-right min-w-[100px]">Ações</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transacoesFiltradas.map((transacao) => (
+              {loading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4, 5].map((i) => (
+                    <Skeleton key={i} className="h-12 w-full" />
+                  ))}
+                </div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead className="min-w-[90px]">Data</TableHead>
+                      <TableHead className="min-w-[90px]">Tipo</TableHead>
+                      <TableHead className="min-w-[100px]">Categoria</TableHead>
+                      <TableHead className="min-w-[150px]">Descrição</TableHead>
+                      <TableHead className="min-w-[100px]">Evento</TableHead>
+                      <TableHead className="min-w-[100px]">Valor</TableHead>
+                      <TableHead className="min-w-[90px]">Status</TableHead>
+                      <TableHead className="text-right min-w-[100px]">Ações</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {transacoesFiltradas.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={8} className="text-center text-muted-foreground py-8">
+                          Nenhuma transação encontrada
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      transacoesFiltradas.map((transacao) => (
                   <TableRow key={transacao.id}>
                     <TableCell>{new Date(transacao.dataLancamento).toLocaleDateString('pt-BR')}</TableCell>
                     <TableCell>
@@ -380,9 +475,11 @@ const Financeiro = () => {
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           </CardContent>
         </Card>
