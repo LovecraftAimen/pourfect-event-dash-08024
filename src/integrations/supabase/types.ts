@@ -134,6 +134,57 @@ export type Database = {
         }
         Relationships: []
       }
+      escalas: {
+        Row: {
+          created_at: string
+          evento_id: string
+          horario_entrada: string
+          horario_saida: string
+          id: string
+          membro_equipe_id: string
+          status: string
+          updated_at: string
+          valor_pago: number | null
+        }
+        Insert: {
+          created_at?: string
+          evento_id: string
+          horario_entrada: string
+          horario_saida: string
+          id?: string
+          membro_equipe_id: string
+          status?: string
+          updated_at?: string
+          valor_pago?: number | null
+        }
+        Update: {
+          created_at?: string
+          evento_id?: string
+          horario_entrada?: string
+          horario_saida?: string
+          id?: string
+          membro_equipe_id?: string
+          status?: string
+          updated_at?: string
+          valor_pago?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "escalas_evento_id_fkey"
+            columns: ["evento_id"]
+            isOneToOne: false
+            referencedRelation: "eventos"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "escalas_membro_equipe_id_fkey"
+            columns: ["membro_equipe_id"]
+            isOneToOne: false
+            referencedRelation: "membros_equipe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       eventos: {
         Row: {
           cliente_id: string
@@ -183,6 +234,42 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      membros_equipe: {
+        Row: {
+          created_at: string
+          disponibilidade: string
+          email: string
+          funcao: string
+          id: string
+          nome: string
+          salario_por_evento: number
+          telefone: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          disponibilidade?: string
+          email: string
+          funcao: string
+          id?: string
+          nome: string
+          salario_por_evento?: number
+          telefone: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          disponibilidade?: string
+          email?: string
+          funcao?: string
+          id?: string
+          nome?: string
+          salario_por_evento?: number
+          telefone?: string
+          updated_at?: string
+        }
+        Relationships: []
       }
       orcamentos: {
         Row: {
