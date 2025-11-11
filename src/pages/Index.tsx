@@ -1,16 +1,104 @@
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/Layout/DashboardLayout';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
-import { Calendar, DollarSign, TrendingUp, AlertTriangle, Package, Users, TrendingDown } from 'lucide-react';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockTransacoes, mockEventos, mockProdutos, mockMembrosEquipe } from '@/data/mockData';
+import { Calendar, DollarSign, TrendingUp, AlertTriangle, Package, Users, TrendingDown, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
+import { Skeleton } from '@/components/ui/skeleton';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import type { Transacao, Evento, Produto, MembroEquipe } from '@/types';
 
 const Index = () => {
-  const [transacoes] = useLocalStorage('transacoes', mockTransacoes);
-  const [eventos] = useLocalStorage('eventos', mockEventos);
-  const [produtos] = useLocalStorage('produtos', mockProdutos);
-  const [membros] = useLocalStorage('membros-equipe', mockMembrosEquipe);
+  const { toast } = useToast();
+  const [transacoes, setTransacoes] = useState<Transacao[]>([]);
+  const [eventos, setEventos] = useState<Evento[]>([]);
+  const [produtos, setProdutos] = useState<Produto[]>([]);
+  const [membros, setMembros] = useState<MembroEquipe[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadDashboardData();
+  }, []);
+
+  const loadDashboardData = async () => {
+    try {
+      const [transacoesRes, eventosRes, produtosRes, membrosRes] = await Promise.all([
+        supabase.from('transacoes').select('*').order('data_lancamento', { ascending: false }),
+        supabase.from('eventos').select('*').order('data_inicio'),
+        supabase.from('produtos').select('*').order('nome'),
+        supabase.from('membros_equipe').select('*').order('nome'),
+      ]);
+
+      if (transacoesRes.error) throw transacoesRes.error;
+      if (eventosRes.error) throw eventosRes.error;
+      if (produtosRes.error) throw produtosRes.error;
+      if (membrosRes.error) throw membrosRes.error;
+
+      // Formatar transações
+      const transacoesFormatadas: Transacao[] = (transacoesRes.data || []).map(t => ({
+        id: t.id,
+        tipo: t.tipo as 'receita' | 'despesa',
+        categoria: t.categoria,
+        descricao: t.descricao,
+        valor: Number(t.valor),
+        dataLancamento: t.data_lancamento,
+        status: t.status as 'pendente' | 'pago' | 'recebido',
+        formaPagamento: t.forma_pagamento || undefined,
+        eventoId: t.evento_id || undefined,
+      }));
+
+      // Formatar eventos
+      const eventosFormatados: Evento[] = (eventosRes.data || []).map(e => ({
+        id: e.id,
+        nome: e.nome,
+        clienteId: e.cliente_id,
+        dataInicio: e.data_inicio,
+        dataFim: e.data_fim,
+        local: e.local,
+        numeroConvidados: e.numero_convidados,
+        status: e.status as 'pendente' | 'confirmado' | 'concluido' | 'cancelado',
+        observacoes: e.observacoes || undefined,
+      }));
+
+      // Formatar produtos
+      const produtosFormatados: Produto[] = (produtosRes.data || []).map(p => ({
+        id: p.id,
+        nome: p.nome,
+        categoria: p.categoria,
+        quantidade: Number(p.quantidade),
+        unidade: (p.unidade as 'unidade' | 'ml' | 'g') || 'unidade',
+        precoCompra: Number(p.preco_compra),
+        dataValidade: p.data_validade || undefined,
+        alertaReposicao: Number(p.alerta_reposicao),
+        capacidadeProduto: p.capacidade_produto ? Number(p.capacidade_produto) : undefined,
+      }));
+
+      // Formatar membros
+      const membrosFormatados: MembroEquipe[] = (membrosRes.data || []).map(m => ({
+        id: m.id,
+        nome: m.nome,
+        funcao: m.funcao,
+        telefone: m.telefone,
+        email: m.email,
+        salarioPorEvento: Number(m.salario_por_evento),
+        disponibilidade: (m.disponibilidade === 'ausente' ? 'inativo' : m.disponibilidade) as 'disponivel' | 'ocupado' | 'inativo',
+      }));
+
+      setTransacoes(transacoesFormatadas);
+      setEventos(eventosFormatados);
+      setProdutos(produtosFormatados);
+      setMembros(membrosFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar dados',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Calcular métricas do mês atual
   const now = new Date();
@@ -93,8 +181,41 @@ const Index = () => {
           <p className="text-sm md:text-base text-muted-foreground">Visão geral do seu negócio - DonkeyShot</p>
         </div>
 
-        {/* Cards de métricas principais */}
-        <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+        {loading ? (
+          <>
+            {/* Skeleton para cards de métricas */}
+            <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
+              {[1, 2, 3, 4].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="pb-2 space-y-0">
+                    <Skeleton className="h-4 w-24" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-8 w-32" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+
+            {/* Skeleton para cards secundários */}
+            <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <Card key={i}>
+                  <CardHeader className="pb-2">
+                    <Skeleton className="h-4 w-32" />
+                  </CardHeader>
+                  <CardContent>
+                    <Skeleton className="h-6 w-24" />
+                    <Skeleton className="h-3 w-20 mt-1" />
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          </>
+        ) : (
+          <>
+            {/* Cards de métricas principais */}
+            <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 lg:grid-cols-4">
           {stats.map((stat) => (
             <Card key={stat.title}>
               <CardHeader className="flex flex-row items-center justify-between pb-2 space-y-0">
@@ -109,11 +230,11 @@ const Index = () => {
                 <div className={`text-xl md:text-2xl font-bold ${stat.color}`}>{stat.value}</div>
               </CardContent>
             </Card>
-          ))}
-        </div>
+            ))}
+          </div>
 
-        {/* Cards secundários */}
-        <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
+          {/* Cards secundários */}
+          <div className="grid gap-3 md:gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3">
           <Card>
             <CardHeader className="pb-2 md:pb-3">
               <CardTitle className="text-xs md:text-sm font-medium">Contas a Receber</CardTitle>
@@ -316,6 +437,8 @@ const Index = () => {
             </div>
           </CardContent>
         </Card>
+        </>
+        )}
       </div>
     </DashboardLayout>
   );

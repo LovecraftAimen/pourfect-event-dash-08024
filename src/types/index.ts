@@ -4,7 +4,7 @@ export interface Evento {
   dataInicio: string;
   dataFim: string;
   local: string;
-  status: 'confirmado' | 'pendente' | 'cancelado';
+  status: 'confirmado' | 'pendente' | 'cancelado' | 'concluido';
   numeroConvidados: number;
   clienteId: string;
   observacoes?: string;
