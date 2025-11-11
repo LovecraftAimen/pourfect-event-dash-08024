@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,8 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import type { Orcamento, Cliente, Drink } from '@/types';
 import { Calendar, MapPin, Users, DollarSign, Wine, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockDrinks } from '@/data/mockData';
+import { supabase } from '@/integrations/supabase/client';
 
 interface OrcamentoDetalhesProps {
   orcamento: Orcamento | null;
@@ -26,12 +25,53 @@ export function OrcamentoDetalhes({
   onSave 
 }: OrcamentoDetalhesProps) {
   const { toast } = useToast();
-  const [drinks] = useLocalStorage<Drink[]>('drinks', mockDrinks);
+  const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [loading, setLoading] = useState(true);
   const [drinksSelecionados, setDrinksSelecionados] = useState<string[]>(
     orcamento?.cartasDrinks || []
   );
 
   const cliente = clientes.find(c => c.id === orcamento?.clienteId);
+
+  useEffect(() => {
+    loadDrinks();
+  }, []);
+
+  useEffect(() => {
+    if (orcamento?.cartasDrinks) {
+      setDrinksSelecionados(orcamento.cartasDrinks);
+    }
+  }, [orcamento]);
+
+  const loadDrinks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('drinks')
+        .select('*')
+        .order('nome');
+
+      if (error) throw error;
+
+      const drinksFormatados: Drink[] = (data || []).map(d => ({
+        id: d.id,
+        nome: d.nome,
+        descricao: d.descricao || '',
+        ingredientes: [],
+        custoTotal: Number(d.custo_total),
+        precoVendaSugerido: Number(d.preco_venda_sugerido),
+      }));
+
+      setDrinks(drinksFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar drinks',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const addDrink = (drinkId: string) => {
     if (!drinksSelecionados.includes(drinkId)) {
@@ -153,8 +193,17 @@ export function OrcamentoDetalhes({
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid gap-2 sm:grid-cols-2">
-                {drinks.map((drink) => {
+              {loading ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Carregando drinks...
+                </p>
+              ) : drinks.length === 0 ? (
+                <p className="text-sm text-muted-foreground text-center py-4">
+                  Nenhum drink cadastrado ainda
+                </p>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {drinks.map((drink) => {
                   const isSelecionado = drinksSelecionados.includes(drink.id);
                   return (
                     <button
@@ -185,9 +234,10 @@ export function OrcamentoDetalhes({
                     </button>
                   );
                 })}
-              </div>
+                </div>
+              )}
 
-              {drinksSelecionados.length > 0 && (
+              {!loading && drinksSelecionados.length > 0 && (
                 <div className="mt-4 p-3 bg-secondary/20 rounded-lg">
                   <p className="text-sm font-semibold mb-2">
                     Selecionados ({drinksSelecionados.length}):

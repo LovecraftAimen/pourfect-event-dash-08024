@@ -7,8 +7,7 @@ import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Calculator, Users, DollarSign, Plus, Trash2, Wine } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { useLocalStorage } from '@/hooks/useLocalStorage';
-import { mockDrinks } from '@/data/mockData';
+import { supabase } from '@/integrations/supabase/client';
 import type { Drink } from '@/types';
 
 interface ItemEquipe {
@@ -34,12 +33,47 @@ interface ItemPreparo {
 
 export const OrcamentoCalculator = () => {
   const { toast } = useToast();
-  const [drinks] = useLocalStorage<Drink[]>('drinks', mockDrinks);
+  const [drinks, setDrinks] = useState<Drink[]>([]);
+  const [loading, setLoading] = useState(true);
   const [nomeCliente, setNomeCliente] = useState('');
   const [dataEvento, setDataEvento] = useState('');
   const [numeroConvidados, setNumeroConvidados] = useState(120);
   const [localizacao, setLocalizacao] = useState('');
   const [drinksSelecionados, setDrinksSelecionados] = useState<string[]>([]);
+
+  useEffect(() => {
+    loadDrinks();
+  }, []);
+
+  const loadDrinks = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('drinks')
+        .select('*')
+        .order('nome');
+
+      if (error) throw error;
+
+      const drinksFormatados: Drink[] = (data || []).map(d => ({
+        id: d.id,
+        nome: d.nome,
+        descricao: d.descricao || '',
+        ingredientes: [],
+        custoTotal: Number(d.custo_total),
+        precoVendaSugerido: Number(d.preco_venda_sugerido),
+      }));
+
+      setDrinks(drinksFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar drinks',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // Equipe
   const [itensEquipe, setItensEquipe] = useState<ItemEquipe[]>([
@@ -237,8 +271,17 @@ export const OrcamentoCalculator = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-            {drinks.map((drink) => {
+          {loading ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Carregando drinks...
+            </p>
+          ) : drinks.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Nenhum drink cadastrado ainda
+            </p>
+          ) : (
+            <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+              {drinks.map((drink) => {
               const isSelecionado = drinksSelecionados.includes(drink.id);
               return (
                 <button
@@ -269,15 +312,16 @@ export const OrcamentoCalculator = () => {
                 </button>
               );
             })}
-          </div>
+            </div>
+          )}
 
-          {drinksSelecionados.length === 0 && (
+          {!loading && drinksSelecionados.length === 0 && (
             <p className="text-sm text-muted-foreground text-center py-4">
               Nenhum drink selecionado ainda
             </p>
           )}
 
-          {drinksSelecionados.length > 0 && (
+          {!loading && drinksSelecionados.length > 0 && (
             <div className="mt-4 p-3 bg-secondary/20 rounded-lg">
               <p className="text-sm font-semibold mb-2">
                 Drinks Selecionados ({drinksSelecionados.length}):
