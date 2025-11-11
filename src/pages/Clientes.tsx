@@ -662,18 +662,21 @@ const Clientes = () => {
                         <p className="text-sm font-semibold">Itens:</p>
                         <p className="text-sm text-muted-foreground">{orcamento.itens}</p>
                       </div>
-                      <div className="flex gap-2 pt-2">
-                        <Button size="sm" variant="outline" onClick={() => handleViewOrcamento(orcamento)} className="flex-1">
-                          <Eye className="h-3 w-3 mr-1" />
-                          Ver Detalhes
+                      <div className="flex flex-col sm:flex-row gap-2 pt-2">
+                        <Button size="sm" variant="outline" onClick={() => handleViewOrcamento(orcamento)} className="flex-1 text-xs sm:text-sm">
+                          <Eye className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">Ver Detalhes</span>
+                          <span className="sm:hidden">Ver</span>
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleEditOrcamento(orcamento)} className="flex-1">
-                          <Pencil className="h-3 w-3 mr-1" />
-                          Editar
+                        <Button size="sm" variant="outline" onClick={() => handleEditOrcamento(orcamento)} className="flex-1 text-xs sm:text-sm">
+                          <Pencil className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">Editar</span>
+                          <span className="sm:hidden">Edit</span>
                         </Button>
-                        <Button size="sm" variant="outline" onClick={() => handleDeleteOrcamento(orcamento.id)} className="flex-1">
-                          <Trash2 className="h-3 w-3 mr-1" />
-                          Excluir
+                        <Button size="sm" variant="outline" onClick={() => handleDeleteOrcamento(orcamento.id)} className="flex-1 text-xs sm:text-sm">
+                          <Trash2 className="h-3 w-3 sm:mr-1" />
+                          <span className="hidden sm:inline">Excluir</span>
+                          <span className="sm:hidden">Del</span>
                         </Button>
                       </div>
                     </CardContent>
