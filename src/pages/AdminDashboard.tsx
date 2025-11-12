@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { DashboardLayout } from '@/components/Layout/DashboardLayout';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +8,10 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Settings, Plus, Pencil, Trash2, UserPlus } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface Colaborador {
   id: string;
@@ -28,27 +31,51 @@ const menuPermissoes = [
 ];
 
 const AdminDashboard = () => {
-  const [colaboradores, setColaboradores] = useState<Colaborador[]>([
-    {
-      id: '1',
-      nome: 'João Silva',
-      email: 'joao@example.com',
-      permissoes: ['dashboard', 'eventos', 'clientes'],
-    },
-    {
-      id: '2',
-      nome: 'Maria Santos',
-      email: 'maria@example.com',
-      permissoes: ['estoque', 'drinks'],
-    },
-  ]);
-
+  const { toast } = useToast();
+  const [colaboradores, setColaboradores] = useState<Colaborador[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [formNome, setFormNome] = useState('');
   const [formEmail, setFormEmail] = useState('');
   const [formSenha, setFormSenha] = useState('');
   const [formPermissoes, setFormPermissoes] = useState<string[]>([]);
   const [editingId, setEditingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    loadColaboradores();
+  }, []);
+
+  const loadColaboradores = async () => {
+    try {
+      setLoading(true);
+      const { data, error } = await supabase
+        .from('colaboradores')
+        .select('*')
+        .eq('ativo', true)
+        .order('nome');
+
+      if (error) throw error;
+
+      const colaboradoresFormatados: Colaborador[] = (data || []).map(c => ({
+        id: c.id,
+        nome: c.nome,
+        email: c.email,
+        permissoes: Array.isArray(c.permissoes) ? c.permissoes.map(p => String(p)) : [],
+      }));
+
+      setColaboradores(colaboradoresFormatados);
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao carregar colaboradores',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const resetForm = () => {
     setFormNome('');
@@ -70,33 +97,92 @@ const AdminDashboard = () => {
     setIsDialogOpen(true);
   };
 
-  const handleSave = () => {
-    if (!formNome || !formEmail) return;
-
-    if (editingId) {
-      setColaboradores(
-        colaboradores.map((c) =>
-          c.id === editingId
-            ? { ...c, nome: formNome, email: formEmail, permissoes: formPermissoes }
-            : c
-        )
-      );
-    } else {
-      const novoColaborador: Colaborador = {
-        id: Date.now().toString(),
-        nome: formNome,
-        email: formEmail,
-        permissoes: formPermissoes,
-      };
-      setColaboradores([...colaboradores, novoColaborador]);
+  const handleSave = async () => {
+    if (!formNome || !formEmail) {
+      toast({
+        title: 'Campos obrigatórios',
+        description: 'Preencha nome e email',
+        variant: 'destructive',
+      });
+      return;
     }
 
-    setIsDialogOpen(false);
-    resetForm();
+    try {
+      setSubmitting(true);
+
+      if (editingId) {
+        // Atualizar colaborador existente
+        const { error } = await supabase
+          .from('colaboradores')
+          .update({
+            nome: formNome,
+            email: formEmail,
+            permissoes: formPermissoes,
+          })
+          .eq('id', editingId);
+
+        if (error) throw error;
+
+        toast({
+          title: 'Colaborador atualizado',
+          description: 'As informações foram atualizadas com sucesso',
+        });
+      } else {
+        // Criar novo colaborador
+        const { error } = await supabase
+          .from('colaboradores')
+          .insert({
+            nome: formNome,
+            email: formEmail,
+            senha_hash: formSenha, // Em produção, isso deveria ser hasheado
+            permissoes: formPermissoes,
+          });
+
+        if (error) throw error;
+
+        toast({
+          title: 'Colaborador cadastrado',
+          description: 'O novo colaborador foi cadastrado com sucesso',
+        });
+      }
+
+      await loadColaboradores();
+      setIsDialogOpen(false);
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao salvar colaborador',
+        description: error.message,
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const handleDelete = (id: string) => {
-    setColaboradores(colaboradores.filter((c) => c.id !== id));
+  const handleDelete = async (id: string) => {
+    try {
+      // Desativar colaborador ao invés de deletar
+      const { error } = await supabase
+        .from('colaboradores')
+        .update({ ativo: false })
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Colaborador removido',
+        description: 'O colaborador foi removido com sucesso',
+      });
+
+      await loadColaboradores();
+    } catch (error: any) {
+      toast({
+        title: 'Erro ao remover colaborador',
+        description: error.message,
+        variant: 'destructive',
+      });
+    }
   };
 
   const togglePermissao = (permissaoId: string) => {
@@ -210,12 +296,12 @@ const AdminDashboard = () => {
                   </div>
 
                   <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+                    <Button variant="outline" onClick={() => setIsDialogOpen(false)} disabled={submitting}>
                       Cancelar
                     </Button>
-                    <Button onClick={handleSave} disabled={!formNome || !formEmail}>
+                    <Button onClick={handleSave} disabled={!formNome || !formEmail || submitting}>
                       <UserPlus className="h-4 w-4 mr-2" />
-                      {editingId ? 'Salvar Alterações' : 'Cadastrar'}
+                      {submitting ? 'Salvando...' : editingId ? 'Salvar Alterações' : 'Cadastrar'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>
@@ -233,7 +319,16 @@ const AdminDashboard = () => {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {colaboradores.length === 0 ? (
+                {loading ? (
+                  Array.from({ length: 3 }).map((_, i) => (
+                    <TableRow key={i}>
+                      <TableCell><Skeleton className="h-4 w-32" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-48" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-64" /></TableCell>
+                      <TableCell><Skeleton className="h-4 w-24 ml-auto" /></TableCell>
+                    </TableRow>
+                  ))
+                ) : colaboradores.length === 0 ? (
                   <TableRow>
                     <TableCell colSpan={4} className="text-center text-muted-foreground py-8">
                       Nenhum colaborador cadastrado ainda

@@ -62,6 +62,39 @@ export type Database = {
         }
         Relationships: []
       }
+      colaboradores: {
+        Row: {
+          ativo: boolean | null
+          created_at: string
+          email: string
+          id: string
+          nome: string
+          permissoes: Json | null
+          senha_hash: string | null
+          updated_at: string
+        }
+        Insert: {
+          ativo?: boolean | null
+          created_at?: string
+          email: string
+          id?: string
+          nome: string
+          permissoes?: Json | null
+          senha_hash?: string | null
+          updated_at?: string
+        }
+        Update: {
+          ativo?: boolean | null
+          created_at?: string
+          email?: string
+          id?: string
+          nome?: string
+          permissoes?: Json | null
+          senha_hash?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       drink_ingredientes: {
         Row: {
           created_at: string
