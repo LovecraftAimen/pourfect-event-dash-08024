@@ -1,7 +1,8 @@
-import { Bell, LogOut, User } from 'lucide-react';
+import { Bell, LogOut, User, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { SidebarTrigger } from '@/components/ui/sidebar';
 import { useAuth } from '@/contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -13,6 +14,7 @@ import {
 
 export const TopBar = () => {
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
 
   return (
     <header className="h-14 md:h-16 border-b border-border bg-card flex items-center justify-between px-3 md:px-6">
@@ -37,6 +39,10 @@ export const TopBar = () => {
               <div className="text-xs text-muted-foreground truncate">{user?.email}</div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => navigate('/admin')}>
+              <Settings className="mr-2 h-4 w-4" />
+              Painel de Admin
+            </DropdownMenuItem>
             <DropdownMenuItem onClick={logout}>
               <LogOut className="mr-2 h-4 w-4" />
               Sair
